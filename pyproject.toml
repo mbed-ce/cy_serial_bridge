@@ -3,10 +3,11 @@ name = "cy_serial_bridge"
 # this is used by Ruff to disable "upgrade to feature x" inspections where x was added
 # after the given version
 requires-python = ">=3.10"
-version = "0.3.2"
+version = "0.3.3"
 description = "Pure Python driver for using and reconfiguring the CY7C652xx family of USB to SPI/I2C/UART bridge ICs."
 authors = [
   {name = "Jamie Smith", email = "smit109@usc.edu"},
+  {name = "Richard Unger", email = "runger1@gmail.com"},
 ]
 readme = "README.md"
 license = {text = "LGPL"}
@@ -15,7 +16,7 @@ classifiers = [
   #   3 - Alpha
   #   4 - Beta
   #   5 - Production/Stable
-  "Development Status :: 3 - Beta",
+  "Development Status :: 3 - Alpha",
 
   # Indicate who your project is intended for
   "Intended Audience :: Developers",
@@ -33,7 +34,7 @@ classifiers = [
 
 [tool.poetry]
 name = "cy_serial_bridge"
-version = "0.3.2"
+version = "0.3.3"
 description = "Pure Python driver for using and reconfiguring the CY7C652xx family of USB to SPI/I2C/UART bridge ICs."
 authors = ["Jamie Smith <smit109@usc.edu>"]
 readme = "README.md"
@@ -45,6 +46,7 @@ repository = 'https://github.com/mbed-ce/cy_serial_bridge/'
 
 [tool.poetry.scripts]
 cy_serial_cli = 'cy_serial_bridge.cli:main'
+cy_flash = 'cy_serial_bridge.flash:main'
 
 [tool.poetry.urls]
 "Tracker" = 'https://github.com/mbed-ce/cy_serial_bridge/issues'

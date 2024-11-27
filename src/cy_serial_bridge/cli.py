@@ -544,6 +544,68 @@ def serial_term(
         term.close()
 
 
+# GPIO command
+# ---------------------------------------------------------------------------------------------
+
+GpioArgument = typer.Argument(
+    help="GPIOs to get/set. A string in the format 'io1 io4 io2=0 io3=1'."
+)
+
+class GpioOutputStyle(str, enum.Enum):
+    """
+    Enum of output styles for the GPIO command
+    """
+    ASCII = "ascii" 
+    PLAIN = "plain"
+    JSON = "json"
+
+GpioOutputStyleOption = typer.Option("--output-style", help="Output style to use", case_sensitive=False)
+
+
+@app.command(help="Set/Get GPIO pins on the CY7C652xx")
+def gpio(
+    gpio_opt: Annotated[str, GpioArgument] = "", outstyle: Annotated[GpioOutputStyle, GpioOutputStyleOption] = GpioOutputStyle.ASCII
+) -> None:
+    with cast(
+        cy_serial_bridge.driver.CyMfgrIface,
+        context.open_device(
+            global_opt.vid, global_opt.pid, cy_serial_bridge.OpenMode.MFGR_INTERFACE, global_opt.serial_number
+        ),
+    ) as dev:
+        if outstyle == GpioOutputStyle.JSON:
+            print("[")
+        dev.connect()
+        gpio_opts = gpio_opt.split()
+        first = True
+        for opt in gpio_opts:
+            if "=" in opt:
+                pin, value = opt.split("=")
+                pin = int(pin.strip("io"))
+                value = int(value)
+                dev.set_gpio(pin, value)
+            else:
+                pin = int(opt.strip("io"))
+                value = dev.get_gpio(pin)
+                if outstyle == GpioOutputStyle.ASCII:
+                    if not first:
+                        print(" ", end="")
+                    print(f"io{pin}={value}", end="")
+                elif outstyle == GpioOutputStyle.PLAIN:
+                    print(f"{value}")
+                elif outstyle == GpioOutputStyle.JSON:
+                    if not first:
+                        print(",")
+                    print(f'{{"pin": {pin}, "value": {value}}}', end="")        
+                first = False
+        dev.disconnect()
+        if outstyle == GpioOutputStyle.JSON:
+            print("")
+            print("]")
+        elif outstyle == GpioOutputStyle.ASCII:
+            print("")
+
+
+
 def main() -> None:
     app()
 
