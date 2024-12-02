@@ -72,6 +72,63 @@ class CyScbContext:
 
         return None
 
+
+
+    def identify_interface(self, intf: usb1.USBInterface) -> CyType|None:
+        """
+        Identify the current interface of a device.
+
+        This is useful for determining the current mode of a device, as the interface is the only part of the device
+        that can be queried without opening it.
+        """
+        if intf[0].getClass() == USBClass.CDC:
+            if intf[0].getSubClass() == 0x2:
+                return CyType.UART_CDC
+            # elif intf[0].getSubClass() == ??
+            #     return CyType.SPI_CDC
+        elif intf[0].getClass() == 0x0A:
+            if intf[0].getSubClass() == 0x0:
+                return CyType.CDC_DATA
+        elif intf[0].getClass() == 0xFF:
+            # Check manufacturer interface.
+            # It has a defined class/subclass and has no endpoints
+            if intf[0].getNumEndpoints() != 0:
+                return None
+            if intf[0].getSubClass() == CyType.MFG:
+                return CyType.MFG
+        elif intf[0].getClass() == USBClass.VENDOR:
+                if intf[0].getSubClass() not in {
+                    CyType.UART_VENDOR.value,
+                    CyType.SPI.value,
+                    CyType.I2C.value,
+                    CyType.JTAG.value,
+                }:
+                    return None
+                if intf[0].getNumEndpoints() != 3:
+                    return None
+                # Bulk host-to-dev endpoint
+                if (
+                    not (intf[0].getAddress() in [0x01, 0x04])
+                    or (intf[0].getAttributes() & 0x3) != 2
+                ):
+                    return None
+                # Bulk dev-to-host endpoint
+                if (
+                    not (intf[1].getAddress() in [0x82, 0x85])
+                    or (intf[1].getAttributes() & 0x3) != 2
+                ):
+                    return None
+                # Interrupt dev-to-host endpoint
+                if (
+                    not (intf[2].getAddress() in [0x83, 0x86])
+                    or (intf[2].getAttributes() & 0x3) != 3
+                ):
+                    return None
+                return CyType(intf[0].getSubClass())
+        return None
+
+
+
     def list_devices(
         self,
         vid_pids: Set[tuple[int, int]] | None = DEFAULT_VIDS_PIDS,
@@ -110,7 +167,9 @@ class CyScbContext:
 
             # CY7C652xx devices always have either two or three interfaces: potentially one for the USB CDC COM port,
             # one for the actual USB-serial bridge, and one for the configuration interface.
-            if cfg.getNumInterfaces() != 2 and cfg.getNumInterfaces() != 3:
+            # CY7C65215 and CY7C65215A devices have (up to?) 4 interfaces.
+            # CY7C65215 devices could have 0-2 CDC interfaces, up to one on each SCB
+            if cfg.getNumInterfaces() != 2 and cfg.getNumInterfaces() != 3 and cfg.getNumInterfaces() != 4:
                 continue
 
             usb_cdc_interface_settings: usb1.USBInterfaceSetting | None = None
@@ -118,70 +177,38 @@ class CyScbContext:
             scb_interface_settings: usb1.USBInterfaceSetting | None = None
             mfg_interface_settings: usb1.USBInterfaceSetting
 
-            if cfg.getNumInterfaces() == 3 and cfg[0][0].getClass() == USBClass.CDC:
-                # USB CDC mode
-                usb_cdc_interface_settings = cfg[0][0]
-                cdc_data_interface_settings = cfg[1][0]
-                mfg_interface_settings = cfg[2][0]
+            for i in range(cfg.getNumInterfaces()):
+                type = self.identify_interface(cfg[i])
+                if type == None:
+                    pass # TODO verbose output
+                else:
+                    match(type):
+                        case CyType.UART_CDC: # TODO we could have two of these!
+                            usb_cdc_interface_settings = cfg[i][0]
+                            curr_cytype = CyType.UART_CDC
+                        case CyType.CDC_DATA:
+                            cdc_data_interface_settings = cfg[i][0]
+                        case CyType.MFG:
+                            mfg_interface_settings = cfg[i][0]
+                        case CyType.I2C: # TODO we could have two of these!
+                            scb_interface_settings = cfg[i][0]
+                            curr_cytype = CyType.I2C
+                        case CyType.SPI:
+                            scb_interface_settings = cfg[i][0]
+                            curr_cytype = CyType.SPI
+                        case CyType.JTAG:
+                            scb_interface_settings = cfg[i][0]
+                            curr_cytype = CyType.JTAG
+                        case CyType.UART_VENDOR:
+                            scb_interface_settings = cfg[i][0]
+                            curr_cytype = CyType.UART_VENDOR
 
-                # Check USB CDC interface
-                if usb_cdc_interface_settings.getSubClass() != 0x2:
-                    continue
-
-                # Check CDC Data interface
-                if cdc_data_interface_settings.getClass() != 0x0A or cdc_data_interface_settings.getSubClass() != 0x0:
-                    continue
-
-                curr_cytype = CyType.UART_CDC
-
-            else:
-                # USB vendor mode
-                scb_interface_settings = cfg[0][0]
-                mfg_interface_settings = cfg[1][0]
-
-                # Check SCB interface -- the Class should be 0xFF (vendor defined/no rules)
-                # and the SubClass value gives the CyType
-                if scb_interface_settings.getClass() != USBClass.VENDOR:
-                    continue
-                if scb_interface_settings.getSubClass() not in {
-                    CyType.UART_VENDOR.value,
-                    CyType.SPI.value,
-                    CyType.I2C.value,
-                }:
-                    continue
-
-                # Check SCB endpoints
-                if scb_interface_settings.getNumEndpoints() != 3:
-                    continue
-                # Bulk host-to-dev endpoint
-                if (
-                    scb_interface_settings[0].getAddress() != 0x01
-                    or (scb_interface_settings[0].getAttributes() & 0x3) != 2
-                ):
-                    continue
-                # Bulk dev-to-host endpoint
-                if (
-                    scb_interface_settings[1].getAddress() != 0x82
-                    or (scb_interface_settings[1].getAttributes() & 0x3) != 2
-                ):
-                    continue
-                # Interrupt dev-to-host endpoint
-                if (
-                    scb_interface_settings[2].getAddress() != 0x83
-                    or (scb_interface_settings[2].getAttributes() & 0x3) != 3
-                ):
-                    continue
-
-                curr_cytype = CyType(scb_interface_settings.getSubClass())
-
-            # Check manufacturer interface.
-            # It has a defined class/subclass and has no endpoints
-            if mfg_interface_settings.getClass() != 0xFF:
+            if curr_cytype is None or mfg_interface_settings is None \
+                or (scb_interface_settings is None and usb_cdc_interface_settings is None):
+                # TODO verbose output
                 continue
-            if mfg_interface_settings.getSubClass() != CyType.MFG:
-                continue
-            if mfg_interface_settings.getNumEndpoints() != 0:
-                continue
+
+            if mfg_interface_settings is not None: curr_cytype = CyType.MFG
 
             # If we got all the way here, it looks like a CY6C652xx device!
             # Record attributes and add it to the list

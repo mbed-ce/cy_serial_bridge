@@ -59,6 +59,7 @@ class CyType(IntEnum):
         6  # Used to indicate a device which is in CDC UART mode (which will automatically work using an OS driver)
     )
     UART_PHDC = 7  # Used to indicate a device which is in PHDC (Personal Healthcare Device Class) UART mode
+    CDC_DATA = 8  # Used to indicate the CDC data interface (which is a separate interface from the CDC UART interface)
 
 
 class CyVendorCmds(IntEnum):
