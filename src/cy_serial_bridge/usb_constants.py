@@ -86,8 +86,13 @@ class CyVendorCmds(IntEnum):
     CY_JTAG_READ_CMD = 0xD2
     CY_JTAG_WRITE_CMD = 0xD3
 
+    # From Infineon's forums on Mar 24, 2023, here: https://community.infineon.com/t5/USB-low-full-high-speed/CY7C65215-Get-Set-GPIO-Config/td-p/336658
+    #    "CY_GPIO_GET_CONFIG_CMD is maintaining in CyUSBCommon.h but it has not been implemented at the
+    #     hoist side and Silicon so this will not work, we apologize for the confusion with this code 
+    #     will remove this in the upcoming release so it does not create confusion to the user."
     CY_GPIO_GET_CONFIG_CMD = 0xD8
     CY_GPIO_SET_CONFIG_CMD = 0xD9
+    # GET_VALUE and SET_VALUE are implemented and can be used
     CY_GPIO_GET_VALUE_CMD = 0xDA
     CY_GPIO_SET_VALUE_CMD = 0xDB
 
@@ -191,7 +196,8 @@ CY_FIRMWARE_BREAKUP_SIZE = 4096
 CY_GET_SILICON_ID_LEN = 4
 CY_GET_FIRMWARE_VERSION_LEN = 8
 CY_GET_SIGNATURE_LEN = 4
-
+CY_GET_GPIO_LEN = 2
+CY_SET_GPIO_LEN = 1
 
 # PHDC related macros
 class CyPhdc(IntEnum):

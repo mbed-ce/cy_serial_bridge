@@ -366,6 +366,46 @@ class CySerBridgeBase:
         return result_bytes
 
 
+    def set_gpio(self, gpio_nr: int, value: bool) -> None:
+        """
+        Set the value of a GPIO pin.
+
+        :param pin: GPIO pin number to set
+        :param value: Value to set the pin to
+        """
+
+        self.dev.controlWrite(
+                request_type=CY_VENDOR_REQUEST_HOST_TO_DEVICE,
+                request=CyVendorCmds.CY_GPIO_SET_VALUE_CMD,
+                value=gpio_nr,
+                index=1 if value==True else 0,
+                data=[],
+                timeout=self.timeout
+            )
+        # TODO check for errors
+
+        
+    def get_gpio(self, gpio_nr: int) -> bool:
+        """
+        Get the value of a GPIO pin.
+        :param pin: GPIO pin number to get
+        :return: Value of the pin
+        """
+
+        result_bytes = self.dev.controlRead(
+                request_type=CY_VENDOR_REQUEST_DEVICE_TO_HOST,
+                request=CyVendorCmds.CY_GPIO_GET_VALUE_CMD,
+                value=gpio_nr,
+                index=0,
+                length=CY_GET_GPIO_LEN,
+                timeout=self.timeout
+            )
+        if len(result_bytes) != CY_GET_GPIO_LEN or result_bytes[0] != 0:
+            message = f"Error getting GPIO {gpio_nr}"
+            raise CySerialBridgeError(message)
+        return (result_bytes[1]==1)
+
+
 class CyMfgrIface(CySerBridgeBase):
     """
     Class allowing access to a CY7C652xx in the manufacturing interface mode.
