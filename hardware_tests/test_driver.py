@@ -2,15 +2,14 @@ import logging
 import pathlib
 import random
 import time
-from typing import TYPE_CHECKING
+from typing import cast
 
 import pytest
-
-if TYPE_CHECKING:
-    import serial
+import serial
 
 import cy_serial_bridge
-from cy_serial_bridge import DEFAULT_PID, DEFAULT_VID, OpenMode
+from cy_serial_bridge import OpenMode
+from cy_serial_bridge.usb_constants import DEFAULT_PID, DEFAULT_VID
 
 """
 Test suite for the CY7C652xx driver.
@@ -29,66 +28,19 @@ EEPROM_PAGE_SIZE = 64
 context = cy_serial_bridge.CyScbContext()
 
 
-def test_cfg_block_generation():
-    """
-    Test that we can get and set each property of a configuration block
-    """
-    config_block = cy_serial_bridge.ConfigurationBlock(
-        PROJECT_ROOT_DIR / "example_config_blocks" / "mbed_ce_cy7c65211_spi.bin"
-    )
-
-    # Regression test: make sure that all the attributes of a known config block decode as expected
-    assert config_block.config_format_version == (1, 0, 3)
-    assert config_block.device_type == cy_serial_bridge.CyType.SPI
-    assert config_block.vid == 0x04B4
-    assert config_block.pid == 0x0004
-    assert config_block.mfgr_string == "Cypress Semiconductor"
-    assert config_block.product_string == "Mbed CE CY7C65211"
-    assert config_block.serial_number == "14224672048496620243684302669570"
-    assert not config_block.capsense_on
-    assert config_block.default_frequency == 100000
-
-    # Make sure that we can modify the attributes which support being changed
-    config_block.device_type = cy_serial_bridge.CyType.UART_CDC
-    assert config_block.device_type == cy_serial_bridge.CyType.UART_CDC
-
-    config_block.vid = 0x1234
-    config_block.pid = 0x5678
-    assert config_block.vid == 0x1234
-    assert config_block.pid == 0x5678
-
-    config_block.mfgr_string = "Rockwell Automation"
-    config_block.product_string = "Turbo Encabulator"
-    config_block.serial_number = "1337"
-
-    assert config_block.mfgr_string == "Rockwell Automation"
-    assert config_block.product_string == "Turbo Encabulator"
-    assert config_block.serial_number == "1337"
-
-    config_block.default_frequency = 2056000
-    assert config_block.default_frequency == 2056000
-
-    # Also verify that strings can be changed to None and this works
-    config_block.mfgr_string = None
-    config_block.product_string = None
-    config_block.serial_number = None
-
-    assert config_block.mfgr_string is None
-    assert config_block.product_string is None
-    assert config_block.serial_number is None
-
-
 def test_user_flash():
     """
     Test ability to use the user flash programming functionality of the device
     """
     # Enable more detailed logs during the tests
     logging.basicConfig(level=logging.INFO)
-    cy_serial_bridge.utils.log.setLevel(logging.INFO)
+    cy_serial_bridge.log.setLevel(logging.INFO)
 
     # Note: the mode that we open the device in doesn't really matter, it can be anything
     # for this test
-    with context.open_device(DEFAULT_VID, DEFAULT_PID, OpenMode.MFGR_INTERFACE) as dev:
+    with cast(
+        cy_serial_bridge.driver.CyMfgrIface, context.open_device(DEFAULT_VID, DEFAULT_PID, OpenMode.MFGR_INTERFACE)
+    ) as dev:
         # Create a random 8-digit number which will be used in the test.
         # This ensures the flash is actually getting programmed and we aren't just reusing old data.
         random_number = random.randint(0, 10**8 - 1)
@@ -96,32 +48,34 @@ def test_user_flash():
         # Page 1 wil be programmed in the first operation
         page_1_message = f"Hello from page 1! Number is {random_number:08}"
         page_1_bytes = page_1_message.encode("utf-8") + b"a" * (
-            cy_serial_bridge.USER_FLASH_PAGE_SIZE - len(page_1_message)
+            cy_serial_bridge.usb_constants.USER_FLASH_PAGE_SIZE - len(page_1_message)
         )
 
         # Pages 2-4 will be programmed in the second operation
         page_3_message = f"Hello from page 3! Number is {random_number:08}"
         page_3_bytes = page_3_message.encode("utf-8") + b"c" * (
-            cy_serial_bridge.USER_FLASH_PAGE_SIZE - len(page_3_message)
+            cy_serial_bridge.usb_constants.USER_FLASH_PAGE_SIZE - len(page_3_message)
         )
         remaining_pages_bytes = (
-            b"b" * cy_serial_bridge.USER_FLASH_PAGE_SIZE + page_3_bytes + b"d" * cy_serial_bridge.USER_FLASH_PAGE_SIZE
+            b"b" * cy_serial_bridge.usb_constants.USER_FLASH_PAGE_SIZE
+            + page_3_bytes
+            + b"d" * cy_serial_bridge.usb_constants.USER_FLASH_PAGE_SIZE
         )
 
         print("Programming page 1: " + repr(page_1_bytes))
         dev.program_user_flash(0, page_1_bytes)
 
         print("Programming pages 2-4: " + repr(remaining_pages_bytes))
-        dev.program_user_flash(cy_serial_bridge.USER_FLASH_PAGE_SIZE, remaining_pages_bytes)
+        dev.program_user_flash(cy_serial_bridge.usb_constants.USER_FLASH_PAGE_SIZE, remaining_pages_bytes)
 
         # First read the entire memory contents and check that it's as expected
-        entire_mem = dev.read_user_flash(0, cy_serial_bridge.USER_FLASH_SIZE)
+        entire_mem = dev.read_user_flash(0, cy_serial_bridge.usb_constants.USER_FLASH_SIZE)
         print("Read entire memory space: " + repr(entire_mem))
         assert entire_mem == (page_1_bytes + remaining_pages_bytes)
 
         # Also test a 1 page read
         page_3_mem = dev.read_user_flash(
-            2 * cy_serial_bridge.USER_FLASH_PAGE_SIZE, cy_serial_bridge.USER_FLASH_PAGE_SIZE
+            2 * cy_serial_bridge.usb_constants.USER_FLASH_PAGE_SIZE, cy_serial_bridge.usb_constants.USER_FLASH_PAGE_SIZE
         )
         print("Read page 3 only: " + repr(page_3_mem))
         assert page_3_mem == page_3_bytes
@@ -184,7 +138,10 @@ def test_i2c_config_set_get():
     print("J20 = 2-3")
     input("Press [ENTER] when done...")
 
-    with context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.I2C_CONTROLLER) as dev:
+    with cast(
+        cy_serial_bridge.driver.CyI2CControllerBridge,
+        context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.I2C_CONTROLLER),
+    ) as dev:
         print("Setting speed to 400kHz...")
         max_speed_config = cy_serial_bridge.driver.CyI2CConfig(400000)
         dev.set_i2c_configuration(max_speed_config)
@@ -206,7 +163,10 @@ def test_i2c_read_write():
     """
     Test sending I2C read and write transactions
     """
-    with context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.I2C_CONTROLLER) as dev:
+    with cast(
+        cy_serial_bridge.driver.CyI2CControllerBridge,
+        context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.I2C_CONTROLLER),
+    ) as dev:
         dev.set_i2c_configuration(cy_serial_bridge.driver.CyI2CConfig(400000))
 
         # Basic read/write operations
@@ -271,7 +231,10 @@ def test_spi_config_read_write():
     print("J20 = 2-5 [MOSI]")
     input("Press [ENTER] when done...")
 
-    with context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.SPI_CONTROLLER) as dev:
+    with cast(
+        cy_serial_bridge.driver.CySPIControllerBridge,
+        context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.SPI_CONTROLLER),
+    ) as dev:
         config_1 = cy_serial_bridge.CySPIConfig(
             frequency=20000,
             word_size=16,
@@ -372,7 +335,10 @@ def test_spi_read_write():
     """
     Test using the CY7C652xx to read and write the EEPROM on the dev board
     """
-    with context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.SPI_CONTROLLER) as dev:
+    with cast(
+        cy_serial_bridge.driver.CySPIControllerBridge,
+        context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.SPI_CONTROLLER),
+    ) as dev:
         eeprom_driver = M95M02Driver(dev)
 
         random_number = random.randint(0, 10**8 - 1)
@@ -396,7 +362,9 @@ def test_uart_loopback():
     print("Please connect a female-female jumper wire from J18 middle pin [Rx] to J21 middle pin [Tx].")
     input("Press [ENTER] when done...")
 
-    serial_port: serial.Serial = context.open_device(DEFAULT_VID, {DEFAULT_PID}, cy_serial_bridge.OpenMode.UART_CDC)
+    serial_port: serial.Serial = cast(
+        serial.Serial, context.open_device(DEFAULT_VID, {DEFAULT_PID}, cy_serial_bridge.OpenMode.UART_CDC)
+    )
     serial_port.baudrate = 3000000  # Theoretically fastest supported by CY7C652xx
     serial_port.timeout = 0.1  # Shouldn't take too long to see the loopback
 

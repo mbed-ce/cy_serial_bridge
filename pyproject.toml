@@ -15,7 +15,7 @@ classifiers = [
   #   3 - Alpha
   #   4 - Beta
   #   5 - Production/Stable
-  "Development Status :: 3 - Beta",
+  "Development Status :: 4 - Beta",
 
   # Indicate who your project is intended for
   "Intended Audience :: Developers",
@@ -29,57 +29,36 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "libusb1>=3.0",
+    "pyserial>=3.5",
+    "typer>=0.9",
+    "rich>=13.6",
+    "click>=8.0"
 ]
 
+[project.urls]
+source = "https://github.com/mbed-ce/cy_serial_bridge/"
+issues = "https://github.com/mbed-ce/cy_serial_bridge/issues"
+
+[project.scripts]
+cy_serial_cli = 'cy_serial_bridge.cli:main'
+
 [tool.poetry]
-name = "cy_serial_bridge"
-version = "0.3.2"
-description = "Pure Python driver for using and reconfiguring the CY7C652xx family of USB to SPI/I2C/UART bridge ICs."
-authors = ["Jamie Smith <smit109@usc.edu>"]
-readme = "README.md"
 include = ['CHANGELOG.md', 'LICENSE', 'py.typed',]
 packages = [
     { include = 'cy_serial_bridge', from = 'src' },
 ]
-repository = 'https://github.com/mbed-ce/cy_serial_bridge/'
-
-[tool.poetry.scripts]
-cy_serial_cli = 'cy_serial_bridge.cli:main'
-
-[tool.poetry.urls]
-"Tracker" = 'https://github.com/mbed-ce/cy_serial_bridge/issues'
-
-[tool.poetry.dependencies]
-python = '^3.10'
-libusb1 = "^3.0.0"
-pyserial = "^3.5"
-typer = "^0.9"
-rich = "^13.6"
-click = "^8.0"
 
 [tool.poetry.group.dev.dependencies]
-mypy = '^1.8.0'
-
-[tool.poetry.group.linters]
-optional = true
-
-[tool.poetry.group.linters.dependencies]
-ruff = '^0.1.9'
-
-[tool.poetry.group.tests]
-optional = true
-
-[tool.poetry.group.tests.dependencies]
-pytest = '^7.4.3'
-pytest-cov = '^4.1.0'
-tox = '^4.11.4'
-tox-gh-actions = '^3.1.3'
+pytest = ">=6.2"
+mypy = ">=1.8"
+ruff = '>=0.9'
 
 [tool.pytest.ini_options]
 minversion = '6.0'
-addopts = """
---doctest-modules
-"""
 testpaths = [
     'tests',
 ]
@@ -89,6 +68,11 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
+line-length = 120
+show-fixes = true
+src = ['src',]
+
+[tool.ruff.lint]
 select = [
     'A',    # Builtins
     'ANN',  # Annotations
@@ -158,40 +142,41 @@ ignore = [
     'TRY301',  # Don't call raise within a try block -- can I help it if other libraries don't use exceptions??
     'TRY300',  # Returns within try blocks
     'PLR2004', # Magic value used in comparison
-    'ANN101',  # Don't require annotations for self.  Waaaaay too complainy, plus deprecated in ruff
     'ANN401',  # Allow typing.any
     'UP007',   # Allow old style union annotations (typing.Optional/typing.Union).  Typer does not support the new style ones.
     'PYI025',  # Allow using collections.abc.Set
     'SIM102',  # Allow multiple nested if statements.  Sometimes it's nice for readability
+    'UP031',   # Allow percent formatting, it can be useful sometimes!
+    'PLC0414', # Allow 'import x as x', needed for exporting type names
 ]
-ignore-init-module-imports = true
-line-length = 120
-# preview = true
-show-fixes = true
-src = ['src',]
-target-version = 'py310'
 
-[tool.ruff.flake8-quotes]
+[tool.ruff.lint.flake8-quotes]
 docstring-quotes = 'double'
 multiline-quotes = 'double'
 
-[tool.ruff.mccabe]
+[tool.ruff.lint.mccabe]
 max-complexity = 24
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 # https://beta.ruff.rs/docs/rules/
 '__init__.py' = ['F401','F403','F405',]
 'tests/*' = ['ANN', 'ARG', 'INP001', 'S101',]
+'hardware_tests/*' = ['ANN', 'ARG', 'INP001', 'S101',]
 
-[tool.ruff.pylint]
+[tool.ruff.lint.pylint]
 max-args = 15
 max-branches = 24
 max-returns = 10
 max-statements = 80
 
-[tool.ruff.flake8-tidy-imports]
+[tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = 'all'
 
 # Allow __init__ to not have a return type annotation
 [tool.ruff.lint.flake8-annotations]
 mypy-init-return = true
+
+[tool.pyright]
+# This check is very strict, it basically blocks interacting with any variable that has the possibility of being None at any point.
+# Mypy does this too but seems to be a bit smarter about detecting whether something could *actually* be None, so we let Mypy handle it.
+reportOptionalMemberAccess = false

@@ -88,7 +88,7 @@ class CyVendorCmds(IntEnum):
 
     # From Infineon's forums on Mar 24, 2023, here: https://community.infineon.com/t5/USB-low-full-high-speed/CY7C65215-Get-Set-GPIO-Config/td-p/336658
     #    "CY_GPIO_GET_CONFIG_CMD is maintaining in CyUSBCommon.h but it has not been implemented at the
-    #     hoist side and Silicon so this will not work, we apologize for the confusion with this code 
+    #     hoist side and Silicon so this will not work, we apologize for the confusion with this code
     #     will remove this in the upcoming release so it does not create confusion to the user."
     CY_GPIO_GET_CONFIG_CMD = 0xD8
     CY_GPIO_SET_CONFIG_CMD = 0xD9
@@ -198,6 +198,7 @@ CY_GET_FIRMWARE_VERSION_LEN = 8
 CY_GET_SIGNATURE_LEN = 4
 CY_GET_GPIO_LEN = 2
 CY_SET_GPIO_LEN = 1
+
 
 # PHDC related macros
 class CyPhdc(IntEnum):

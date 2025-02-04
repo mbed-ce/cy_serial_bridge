@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import sys
 import time
-import typing
 from enum import Enum
 from typing import TYPE_CHECKING, Union, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Set
+    from collections.abc import Sequence, Set
 
 import serial
 import usb1
@@ -62,7 +61,7 @@ class CyScbContext:
 
         Uses pyserial to do the hard work. If no device is found, returns None
         """
-        serial_port_generator: Generator[list_ports_common.ListPortInfo, None, None] = list_ports.comports()
+        serial_port_generator: Sequence[list_ports_common.ListPortInfo] = list_ports.comports()
         for serial_port in serial_port_generator:
             if serial_port.serial_number is not None:
                 # Note: Testing on Windows, the serial number always gets converted to uppercase.
@@ -333,7 +332,7 @@ class CyScbContext:
 
         # Step 2: Change type of the device, if needed
         needed_cytype: CyType | None = open_mode.value[0]
-        driver_class: type[driver.CySerBridgeBase] = open_mode.value[1]
+        driver_class: type[AnyDriverClass] = open_mode.value[1]
         if needed_cytype is not None and device_to_open.curr_cytype != needed_cytype:
             log.info(
                 f"The CyType of this device must be changed to {needed_cytype.name} in order to open it as {open_mode.name}"
@@ -382,4 +381,4 @@ class CyScbContext:
                 raise CySerialBridgeError(message)
             return serial.Serial(port=device_to_open.serial_port_name)
         else:
-            return typing.cast(AnyDriverClass, driver_class(self, device_to_open))  # type: ignore[call-arg]
+            return driver_class(self, device_to_open)

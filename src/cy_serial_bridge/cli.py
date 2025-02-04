@@ -16,7 +16,7 @@ import usb1
 from serial.tools import miniterm
 
 import cy_serial_bridge
-from cy_serial_bridge.usb_constants import DEFAULT_PID, DEFAULT_VID
+from cy_serial_bridge.usb_constants import DEFAULT_PID, DEFAULT_VID, CyI2c, CySpi, CyType, CyUart
 from cy_serial_bridge.utils import log
 
 app = typer.Typer(
@@ -265,7 +265,7 @@ def reconfigure(
 
 TypeArgument = typer.Argument(
     help="Communication type to change the bridge into",
-    click_type=click.Choice(cy_serial_bridge.CyType._member_names_, case_sensitive=False),  # noqa: SLF001
+    click_type=click.Choice(CyType._member_names_, case_sensitive=False),
     show_default=False,
 )
 
@@ -274,31 +274,30 @@ TypeArgument = typer.Argument(
     help="Set the type of device that the serial bridge acts as (I2C/SPI/UART).  For configurable bridge devices (65211/65215) only."
 )
 def change_type(type: Annotated[str, TypeArgument]) -> None:  # noqa: A002
-    cy_type = cy_serial_bridge.CyType[type]
+    cy_type = CyType[type]
 
     # MFG is not a type that can actually be set because the vendor interface is always active along with
     # whatever other interface is needed
-    if cy_type == cy_serial_bridge.CyType.MFG:
+    if cy_type == CyType.MFG:
         message = "Invalid CyType value, cannot set MFG as the device type"
         raise typer.BadParameter(message)
 
-    if cy_type == cy_serial_bridge.CyType.UART_VENDOR:
+    if cy_type == CyType.UART_VENDOR:
         print(
             "UART_VENDOR devices cannot be accessed by the cy_serial_bridge library.  If you want to use the device"
             " in UART mode with this library, use UART_CDC instead."
         )
         typer.confirm("Are you sure you want to continue with this mode?", abort=True)
-    elif cy_type == cy_serial_bridge.CyType.UART_PHDC:
+    elif cy_type == CyType.UART_PHDC:
         print(
             "UART_PHDC devices cannot be accessed by the cy_serial_bridge library and additionally UART_PHDC mode "
             "has not been tested by the cy_serial_bridge authors.  If you want to use the device"
             " in UART mode with this library, use UART_CDC instead."
         )
         typer.confirm("Are you sure you want to continue with this mode?", abort=True)
-    elif cy_type == cy_serial_bridge.CyType.JTAG:
+    elif cy_type == CyType.JTAG:
         print(
-            "CyType.JTAG is only usable for SCB1 on the CY7C65215, and JTAG is currently not supported "
-            "by this driver."
+            "CyType.JTAG is only usable for SCB1 on the CY7C65215, and JTAG is currently not supported by this driver."
         )
         typer.confirm("Are you sure you want to continue with this mode?", abort=True)
 
@@ -390,8 +389,8 @@ I2CWriteDataArgument = typer.Argument(
 I2CFreqOption = typer.Option(
     "--frequency",
     "-f",
-    min=cy_serial_bridge.CyI2c.MIN_FREQUENCY,
-    max=cy_serial_bridge.CyI2c.MAX_FREQUENCY,
+    min=CyI2c.MIN_FREQUENCY,
+    max=CyI2c.MAX_FREQUENCY,
     help="I2C frequency to use, in Hz.",
 )
 
@@ -400,7 +399,7 @@ I2CFreqOption = typer.Option(
 def i2c_write(
     periph_addr: Annotated[int, PeriphAddrArgument],
     data_to_write: Annotated[str, I2CWriteDataArgument] = "",
-    freq: Annotated[int, I2CFreqOption] = cy_serial_bridge.CyI2c.MAX_FREQUENCY.value,
+    freq: Annotated[int, I2CFreqOption] = CyI2c.MAX_FREQUENCY.value,
 ) -> None:
     with cast(
         cy_serial_bridge.driver.CyI2CControllerBridge,
@@ -438,8 +437,8 @@ SPISendDataArgument = typer.Argument(
 SPIFreqOption = typer.Option(
     "--frequency",
     "-f",
-    min=cy_serial_bridge.CySpi.MIN_FREQUENCY,
-    max=cy_serial_bridge.CySpi.MAX_MASTER_FREQUENCY,
+    min=CySpi.MIN_FREQUENCY,
+    max=CySpi.MAX_MASTER_FREQUENCY,
     help="SPI frequency to use, in Hz.",
 )
 
@@ -448,7 +447,7 @@ SPIModeArgument = typer.Option(
     "--mode",
     "-m",
     help="SPI mode to use for the transfer",
-    click_type=click.Choice(cy_serial_bridge.CySPIMode._member_names_, case_sensitive=False),  # noqa: SLF001
+    click_type=click.Choice(cy_serial_bridge.CySPIMode._member_names_, case_sensitive=False),
     show_default=False,
 )
 
@@ -456,7 +455,7 @@ SPIModeArgument = typer.Option(
 @app.command(help="Perform a transaction over the SPI bus")
 def spi_transaction(
     bytes_to_send: Annotated[str, SPISendDataArgument],
-    freq: Annotated[int, SPIFreqOption] = cy_serial_bridge.CySpi.MAX_MASTER_FREQUENCY.value,
+    freq: Annotated[int, SPIFreqOption] = CySpi.MAX_MASTER_FREQUENCY.value,
     mode: Annotated[str, SPIModeArgument] = cy_serial_bridge.CySPIMode.MOTOROLA_MODE_0.name,
 ) -> None:
     with cast(
@@ -496,9 +495,7 @@ class EndOfLineType(str, enum.Enum):
 
 
 # We try to ape some of miniterm's more common command line options, though it's not a complete list.
-BaudrateOption = typer.Option(
-    "-b", "--baudrate", help="Serial baudrate.", max=cy_serial_bridge.CyUart.MAX_BAUDRATE.value
-)
+BaudrateOption = typer.Option("-b", "--baudrate", help="Serial baudrate.", max=CyUart.MAX_BAUDRATE.value)
 EOLOption = typer.Option("--eol", help="End-of-line type to use", case_sensitive=False)
 
 
@@ -525,7 +522,7 @@ def serial_term(
         term.set_tx_encoding("UTF-8")
 
         sys.stderr.write(
-            "--- Miniterm on {p.name}  {p.baudrate},{p.bytesize},{p.parity},{p.stopbits} ---\n".format(p=term.serial)
+            f"--- Miniterm on {term.serial.name}  {term.serial.baudrate},{term.serial.bytesize},{term.serial.parity},{term.serial.stopbits} ---\n"
         )
         sys.stderr.write(
             "--- Quit: {} | Menu: {} | Help: {} followed by {} ---\n".format(
@@ -548,24 +545,26 @@ def serial_term(
 # GPIO command
 # ---------------------------------------------------------------------------------------------
 
-GpioArgument = typer.Argument(
-    help="GPIOs to get/set. A string in the format 'io1 io4 io2=0 io3=1'."
-)
+GpioArgument = typer.Argument(help="GPIOs to get/set. A string in the format 'io1 io4 io2=0 io3=1'.")
+
 
 class GpioOutputStyle(str, enum.Enum):
     """
     Enum of output styles for the GPIO command
     """
-    ASCII = "ascii" 
+
+    ASCII = "ascii"
     PLAIN = "plain"
     JSON = "json"
+
 
 GpioOutputStyleOption = typer.Option("--output-style", help="Output style to use", case_sensitive=False)
 
 
 @app.command(help="Set/Get GPIO pins on the CY7C652xx")
 def gpio(
-    gpio_opt: Annotated[str, GpioArgument] = "", outstyle: Annotated[GpioOutputStyle, GpioOutputStyleOption] = GpioOutputStyle.ASCII
+    gpio_opt: Annotated[str, GpioArgument] = "",
+    outstyle: Annotated[GpioOutputStyle, GpioOutputStyleOption] = GpioOutputStyle.ASCII,
 ) -> None:
     with cast(
         cy_serial_bridge.driver.CyMfgrIface,
@@ -580,9 +579,9 @@ def gpio(
         first = True
         for opt in gpio_opts:
             if "=" in opt:
-                pin, value = opt.split("=")
-                pin = int(pin.strip("io"))
-                value = int(value)
+                pin_str, value_str = opt.split("=")
+                pin = int(pin_str.strip("io"))
+                value = int(value_str) != 0
                 dev.set_gpio(pin, value)
             else:
                 pin = int(opt.strip("io"))
@@ -596,7 +595,7 @@ def gpio(
                 elif outstyle == GpioOutputStyle.JSON:
                     if not first:
                         print(",")
-                    print(f'{{"pin": {pin}, "value": {value}}}', end="")        
+                    print(f'{{"pin": {pin}, "value": {value}}}', end="")
                 first = False
         dev.disconnect()
         if outstyle == GpioOutputStyle.JSON:
@@ -608,6 +607,7 @@ def gpio(
 
 # Main entry point
 # ---------------------------------------------------------------------------------------------
+
 
 def main() -> None:
     app()

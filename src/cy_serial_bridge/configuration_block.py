@@ -285,7 +285,7 @@ class ConfigurationBlock:
         Dump the decodable information from this config block.
         """
         return f"""ConfigurationBlock(
-    config_format_version={'.'.join(str(part) for part in self.config_format_version)}
+    config_format_version={".".join(str(part) for part in self.config_format_version)}
     device_type=CY_TYPE.{self.device_type.name},
     vid=0x{self.vid:04x},
     pid=0x{self.pid:04x},
