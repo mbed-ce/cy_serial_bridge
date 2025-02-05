@@ -132,7 +132,7 @@ def save(file: Annotated[pathlib.Path, OutputConfigurationArgument]) -> None:
         dev.disconnect()
 
         # As a sanity check, parse the bytes to make sure the checksum is valid
-        config_block = cy_serial_bridge.configuration_block.ConfigurationBlock(block_bytes=buf)
+        config_block = cy_serial_bridge.ConfigurationBlock(block_bytes=buf)
         log.info("Read the following configuration from the device: %s", str(config_block))
 
         # Save to file
@@ -155,7 +155,7 @@ def load(file: Annotated[pathlib.Path, InputConfigurationArgument]) -> None:
         ),
     ) as dev:
         # Load bytes and check checksum
-        config_block = cy_serial_bridge.configuration_block.ConfigurationBlock(file)
+        config_block = cy_serial_bridge.ConfigurationBlock(file)
 
         log.info("Writing the following configuration to the device: %s", str(config_block))
 
@@ -174,7 +174,7 @@ def load(file: Annotated[pathlib.Path, InputConfigurationArgument]) -> None:
 @app.command(help="Decode and display basic information from configuration block bin file")
 def decode(file: Annotated[pathlib.Path, InputConfigurationArgument]) -> None:
     # Just decode the configuration block, then exit.
-    cfg_block = cy_serial_bridge.configuration_block.ConfigurationBlock(file)
+    cfg_block = cy_serial_bridge.ConfigurationBlock(file)
     print(str(cfg_block))
 
 
@@ -219,7 +219,7 @@ def reconfigure(
         try:
             buffer = dev.read_config()
 
-            config_block = cy_serial_bridge.configuration_block.ConfigurationBlock(block_bytes=buffer)
+            config_block = cy_serial_bridge.ConfigurationBlock(block_bytes=buffer)
             log.info("Read the following configuration from the device: %s", str(config_block))
 
             if randomize_serno:

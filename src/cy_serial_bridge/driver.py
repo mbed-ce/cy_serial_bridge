@@ -81,9 +81,6 @@ class CySerBridgeBase:
 
         self.timeout = timeout
 
-        self.ep_in = None
-        self.ep_out = None
-
         if self.cy_type == CyType.MFG and self.discovered_dev.curr_cytype == CyType.UART_CDC:
             if sys.platform == "darwin":
                 import os
@@ -151,16 +148,17 @@ class CySerBridgeBase:
                     self.discovered_dev.usb_cdc_interface_settings,
                 )
 
-                for interface in filter(lambda iface: iface is not None, all_interfaces):
-                    if self.dev.kernelDriverActive(interface.getNumber()):
-                        self.dev.detachKernelDriver(interface.getNumber())
+                for interface in all_interfaces:
+                    if interface is not None:
+                        if self.dev.kernelDriverActive(interface.getNumber()):
+                            self.dev.detachKernelDriver(interface.getNumber())
 
             if self.cy_type == CyType.MFG:
                 # Interface to use is the manufacturer interface
                 target_interface = self.discovered_dev.mfg_interface_settings
             else:
                 # Interface to use is the SCB interface
-                target_interface = self.discovered_dev.scb_interface_settings
+                target_interface = cast(usb1.USBInterfaceSetting, self.discovered_dev.scb_interface_settings)
 
             #
             # NOTE:
@@ -215,7 +213,6 @@ class CySerBridgeBase:
 
         if self.dev:
             self.dev.close()
-        self.dev = None
 
         if not self.context.has_opened_driver:
             message = "...what? Context thinks the driver isn't open?"
@@ -378,7 +375,7 @@ class CySerBridgeBase:
             request=CyVendorCmds.CY_GPIO_SET_VALUE_CMD,
             value=gpio_nr,
             index=1 if value == True else 0,
-            data=[],
+            data=b"",
             timeout=self.timeout,
         )
         # TODO check for errors
@@ -440,9 +437,9 @@ class CyMfgrIface(CySerBridgeBase):
         w_index = 0
         w_buffer = bytearray(0)
 
-        return cast(int, self.dev.controlWrite(bm_request_type, bm_request, w_value, w_index, w_buffer, self.timeout))
+        return self.dev.controlWrite(bm_request_type, bm_request, w_value, w_index, w_buffer, self.timeout)
 
-    def probe0(self) -> int:
+    def probe0(self) -> bytes:
         """Send whatever USCU sends on startup - get silicon ID as we found out"""
         bm_request_type = CY_VENDOR_REQUEST | EP_IN
         bm_request = CyVendorCmds.CY_BOOT_CMD_GET_SILICON_ID
@@ -450,7 +447,7 @@ class CyMfgrIface(CySerBridgeBase):
         w_index = 0
         w_length = 4
 
-        return cast(int, self.dev.controlRead(bm_request_type, bm_request, w_value, w_index, w_length, self.timeout))
+        return self.dev.controlRead(bm_request_type, bm_request, w_value, w_index, w_length, self.timeout)
 
     # Note that there used to be a "probe1" function here for another mystery sequence, but that was revealed to be just
     # getting the firmware version (equivalent to get_firmware_version())
@@ -465,7 +462,7 @@ class CyMfgrIface(CySerBridgeBase):
         w_index = 0xB1B0
         w_buffer = bytearray(0)
 
-        return cast(int, self.dev.controlWrite(bm_request_type, bm_request, w_value, w_index, w_buffer, self.timeout))
+        return self.dev.controlWrite(bm_request_type, bm_request, w_value, w_index, w_buffer, self.timeout)
 
     def disconnect(self) -> int:
         """
@@ -477,7 +474,7 @@ class CyMfgrIface(CySerBridgeBase):
         w_index = 0xB9B0
         w_buffer = bytearray(0)
 
-        return cast(int, self.dev.controlWrite(bm_request_type, bm_request, w_value, w_index, w_buffer, self.timeout))
+        return self.dev.controlWrite(bm_request_type, bm_request, w_value, w_index, w_buffer, self.timeout)
 
     def read_config(self) -> ByteSequence:
         """
@@ -508,7 +505,7 @@ class CyMfgrIface(CySerBridgeBase):
 
         w_buffer = config.config_bytes
 
-        return cast(int, self.dev.controlWrite(bm_request_type, bm_request, w_value, w_index, w_buffer, self.timeout))
+        return self.dev.controlWrite(bm_request_type, bm_request, w_value, w_index, w_buffer, self.timeout)
 
     def change_type(self, new_type: CyType) -> None:
         """
@@ -1002,7 +999,7 @@ class CySPIControllerBridge(CySerBridgeBase):
         """
         Poll the SPI status indicator to determine if a write is done
         """
-        spi_status: bytearray = self.dev.controlRead(
+        spi_status = self.dev.controlRead(
             request_type=CY_VENDOR_REQUEST_DEVICE_TO_HOST,
             request=CyVendorCmds.CY_SPI_GET_STATUS_CMD,
             value=self.scb_index << CY_SCB_INDEX_POS,

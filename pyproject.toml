@@ -56,6 +56,7 @@ packages = [
 pytest = ">=6.2"
 mypy = ">=1.8"
 ruff = '>=0.9'
+types-pyserial = ">=3.5.0"
 
 [tool.pytest.ini_options]
 minversion = '6.0'
@@ -149,6 +150,7 @@ ignore = [
     'UP031',   # Allow percent formatting, it can be useful sometimes!
     'PLC0414', # Allow 'import x as x', needed for exporting type names
 ]
+exclude = ["stubs/*"]
 
 [tool.ruff.lint.flake8-quotes]
 docstring-quotes = 'double'
@@ -160,7 +162,13 @@ max-complexity = 24
 [tool.ruff.lint.per-file-ignores]
 # https://beta.ruff.rs/docs/rules/
 '__init__.py' = ['F401','F403','F405',]
-'tests/*' = ['ANN', 'ARG', 'INP001', 'S101',]
+'tests/*' = [
+    'ANN', 
+    'ARG', 
+    'INP001', 
+    'S101',
+    'N802',   # Allow non-snake_case function names, because we need to mock usb1 functions
+]
 'hardware_tests/*' = ['ANN', 'ARG', 'INP001', 'S101',]
 
 [tool.ruff.lint.pylint]
@@ -177,6 +185,12 @@ ban-relative-imports = 'all'
 mypy-init-return = true
 
 [tool.pyright]
-# This check is very strict, it basically blocks interacting with any variable that has the possibility of being None at any point.
-# Mypy does this too but seems to be a bit smarter about detecting whether something could *actually* be None, so we let Mypy handle it.
-reportOptionalMemberAccess = false
+stubPath = "./stubs"
+exclude = [
+    "stubs"
+]
+reportWildcardImportFromLibrary = false
+
+[tool.mypy]
+strict = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR/stubs"

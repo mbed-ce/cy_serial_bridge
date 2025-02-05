@@ -67,7 +67,7 @@ class CyScbContext:
                 # Note: Testing on Windows, the serial number always gets converted to uppercase.
                 # So we have to lowercase both values before comparing them.
                 if serial_port.serial_number.lower() == serial_number.lower():
-                    return cast(str, serial_port.device)
+                    return serial_port.device
 
         return None
 
@@ -381,4 +381,9 @@ class CyScbContext:
                 raise CySerialBridgeError(message)
             return serial.Serial(port=device_to_open.serial_port_name)
         else:
+            # driver_class cannot be Serial at this time
+            driver_class = cast(
+                type[Union[driver.CySPIControllerBridge, driver.CyI2CControllerBridge, driver.CyMfgrIface]],
+                driver_class,
+            )
             return driver_class(self, device_to_open)
