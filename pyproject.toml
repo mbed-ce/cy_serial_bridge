@@ -54,6 +54,7 @@ packages = [
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=6.2"
+pytest-mock = ">=3.13.0"
 mypy = ">=1.8"
 ruff = '>=0.9'
 types-pyserial = ">=3.5.0"

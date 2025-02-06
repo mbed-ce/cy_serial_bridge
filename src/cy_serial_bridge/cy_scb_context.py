@@ -45,7 +45,7 @@ class CyScbContext:
 
     It wraps a libusb context and allows searching for and opening devices.
 
-    Warning: One context instance should only be opened by one thread, and may only have one driver open
+    Warning: One context instance must only be used by one thread, and it may only have one driver open
         on it at a time.
     """
 
@@ -258,6 +258,8 @@ class CyScbContext:
                 message = f"Found device with VID:PID {vid:04x}:{device_to_open.pid:04x} but cannot open it!"
                 if sys.platform == "win32":
                     message += "  This is likely because it does not have the WinUSB driver attached."
+                elif sys.platform == "linux":
+                    message += "  This is likely because the udev rules are not installed or not correctly configured."
                 raise CySerialBridgeError(message)
 
             if serial_number is not None and device_to_open.serial_number != serial_number:
@@ -284,6 +286,10 @@ class CyScbContext:
                     message = "Did not find an exact match for serial number.  However, at least one candidate device with was found that could not be opened!"
                     if sys.platform == "win32":
                         message += "  This is likely because it does not have the WinUSB driver attached."
+                    elif sys.platform == "linux":
+                        message += (
+                            "  This is likely because the udev rules are not installed or not correctly configured."
+                        )
                     raise CySerialBridgeError(message)
                 else:
                     message = "Multiple devices found but none matched the specified serial number!"

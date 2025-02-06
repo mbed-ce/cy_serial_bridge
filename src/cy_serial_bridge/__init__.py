@@ -22,4 +22,5 @@ from cy_serial_bridge.driver import I2CNACKError as I2CNACKError
 from cy_serial_bridge.usb_constants import CyType as CyType
 from cy_serial_bridge.utils import ByteSequence as ByteSequence
 from cy_serial_bridge.utils import CySerialBridgeError as CySerialBridgeError
+from cy_serial_bridge.utils import DiscoveredDevice as DiscoveredDevice
 from cy_serial_bridge.utils import log as log
