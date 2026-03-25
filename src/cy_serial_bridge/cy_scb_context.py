@@ -13,7 +13,7 @@ import usb1
 from serial.tools import list_ports, list_ports_common
 
 from cy_serial_bridge import driver
-from cy_serial_bridge.usb_constants import DEFAULT_VIDS_PIDS, CyType, USBClass
+from cy_serial_bridge.usb_constants import DEFAULT_VIDS_PIDS, CyType, CyUARTType, USBClass
 from cy_serial_bridge.utils import CySerialBridgeError, DiscoveredDevice, log
 
 
@@ -23,16 +23,18 @@ class OpenMode(Enum):
 
     Value is a tuple of:
     - CY_TYPE that the chip must be in to use this mode, or None for any
+    - UART type to use if changing the chip's mode to UART
     - Driver class that will be instantiated and returned
     """
 
-    I2C_CONTROLLER = (CyType.I2C, driver.CyI2CControllerBridge)
-    SPI_CONTROLLER = (CyType.SPI, driver.CySPIControllerBridge)
-    MFGR_INTERFACE = (None, driver.CyMfgrIface)
+    I2C_CONTROLLER = (CyType.I2C, CyUARTType.NONE, driver.CyI2CControllerBridge)
+    SPI_CONTROLLER = (CyType.SPI, CyUARTType.NONE, driver.CySPIControllerBridge)
+    MFGR_INTERFACE = (None, CyUARTType.NONE, driver.CyMfgrIface)
 
-    # Note: Unlike the other open modes, UART_CDC directly returns a pyserial Serial object
-    # instead of a driver from this class
-    UART_CDC = (CyType.UART_CDC, serial.Serial)
+    # Note: Unlike the other open modes, UART_CDC modes directly return a pyserial Serial object
+    # instead of a driver from cy_serial_brodge
+    UART_CDC = (CyType.UART_CDC, CyUARTType.TWO_WIRE, serial.Serial)  # UART, no flow control
+    USART_CDC = (CyType.UART_CDC, CyUARTType.FOUR_WIRE, serial.Serial)  # USART, RTS/CTS flow control
 
 
 # Type annotation for anything that can be returned by
@@ -225,14 +227,13 @@ class CyScbContext:
     CHANGE_TYPE_TIMEOUT = 10.0  # s
 
     def scan_for_device(
-        self, vid: int, pids: Union[int, set[int]], open_mode: OpenMode, serial_number: str | None = None
+        self, vid: int, pids: Union[int, set[int]], serial_number: str | None = None
     ) -> DiscoveredDevice:
         """
         Lists all devices on the system, and then tries to find a match for the given vid, pid, and serial number.
 
         If no or multiple matches are found, throws an exception containing the reason.
 
-        :param open_mode: Mode to open the SCB device in
         :param vid: Vendor ID of the device you want to open
         :param pids: Product IDs of the device you want to open.  Accepts either a single integer or a set of ints
         :param serial_number: Serial number of the device you want to open.  May be left as None if there is only one device attached.
@@ -297,18 +298,7 @@ class CyScbContext:
 
         # mypy isn't smart enough to understand that device_to_open cannot be None at this point
         # so we have to help it out.
-        device_to_open = cast("DiscoveredDevice", device_to_open)
-
-        # If opening in UART CDC mode, we have to be able to detect the serial port in order to open the device
-        if (
-            open_mode == OpenMode.UART_CDC
-            and device_to_open.curr_cytype == CyType.UART_CDC
-            and device_to_open.serial_port_name is None
-        ):
-            message = "Unable to detect the correct serial port to open for this device!"
-            raise CySerialBridgeError(message)
-
-        return device_to_open
+        return cast("DiscoveredDevice", device_to_open)
 
     def open_device(
         self, vid: int, pids: Union[int, set[int]], open_mode: OpenMode, serial_number: str | None = None
@@ -319,8 +309,17 @@ class CyScbContext:
         Unlike creating an instance of the driver class directly, this function attempts to abstract away
         management of the device's CyType and will automatically change its type to the needed one.
 
-        Note: For each PID value, both the even value (pid & 0xFFFE) and the odd value ((pid & 0xFFFE) + 1)
-        will be considered.  This is to support UART CDC mode (see the README)
+        .. note::
+            For each PID value, both the even value (pid & 0xFFFE) and the odd value ((pid & 0xFFFE) + 1)
+            will be considered.  This is to support UART CDC mode (see the README)
+
+        .. warning::
+            The UART type (2/4/6 wire) set as part of ``open_mode`` will only be respected if the bridge is
+            currently not in UART mode. If the bridge is already in UART mode it will be assumed to already
+            be using the correct type.
+
+            This is because there is no way to actually check the current type without opening the manufacturer
+            interface and reading the config block -- it cannot be detected from the USB descriptors.
 
         :param vid: Vendor ID of the device you want to open
         :param pids: Product IDs of the device you want to open.  Accepts either a single integer or a set of ints
@@ -334,11 +333,12 @@ class CyScbContext:
         # pids will always be a set[int] at this point but mypy can't seem to figure that out
         pids = cast("set[int]", pids)
 
-        device_to_open = self.scan_for_device(vid, pids, open_mode, serial_number)
+        device_to_open = self.scan_for_device(vid, pids, serial_number)
 
         # Step 2: Change type of the device, if needed
         needed_cytype: CyType | None = open_mode.value[0]
-        driver_class: type[AnyDriverClass] = open_mode.value[1]
+        needed_cy_uart_type: CyUARTType = open_mode.value[1]
+        driver_class: type[AnyDriverClass] = open_mode.value[2]
         if needed_cytype is not None and device_to_open.curr_cytype != needed_cytype:
             log.info(
                 f"The CyType of this device must be changed to {needed_cytype.name} in order to open it as {open_mode.name}"
@@ -347,13 +347,13 @@ class CyScbContext:
 
             # Open the device in manufacturer mode and change its type
             with driver.CyMfgrIface(self, device_to_open) as mfgr_driver:
-                mfgr_driver.change_type(needed_cytype)
+                mfgr_driver.change_type(needed_cytype, needed_cy_uart_type)
                 mfgr_driver.reset_device()
 
             # Wait for the device to re-enumerate with the new type
             while True:
                 try:
-                    device_to_open = self.scan_for_device(vid, pids, open_mode, serial_number)
+                    device_to_open = self.scan_for_device(vid, pids, serial_number)
 
                     # log.debug(f"Scan found a device with CyType {device_to_open.curr_cytype}")
 

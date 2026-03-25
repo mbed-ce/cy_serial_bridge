@@ -506,12 +506,17 @@ class CyMfgrIface(CySerBridgeBase):
 
         return self.dev.controlWrite(bm_request_type, bm_request, w_value, w_index, w_buffer, self.timeout)
 
-    def change_type(self, new_type: CyType) -> None:
+    def change_type(self, new_type: CyType, uart_type: CyUARTType = CyUARTType.TWO_WIRE) -> None:
         """
         Changes the CyType of the device.  Also makes other config changes needed to make that work.
 
         Note: After calling this function, the new CyType will not take effect until
         you reset the device
+
+        :param new_type: The type to set
+        :param uart_type: If switching in to UART mode, this type of UART will be used. The UART type
+           gets overwritten when changing the device to SPI or I2C mode so this needs to be passed in
+           when switching back to UART mode.
         """
         self.connect()
 
@@ -541,6 +546,10 @@ class CyMfgrIface(CySerBridgeBase):
             else:
                 # Confirmed working for UART_CDC and I2C
                 config_block.config_bytes[0x27:0x30] = b"\x00\x02\x08\x01\x00\x00\x00\x00\x00"
+
+                # Reset UART type (which is included in the above bytes)
+                if new_type in {CyType.UART_CDC, CyType.UART_PHDC, CyType.UART_VENDOR}:
+                    config_block.uart_type = uart_type
 
             log.info("Writing the following configuration to the device: %s", str(config_block))
 

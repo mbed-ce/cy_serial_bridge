@@ -3,7 +3,7 @@ name = "cy_serial_bridge"
 # this is used by Ruff to disable "upgrade to feature x" inspections where x was added
 # after the given version
 requires-python = ">=3.10"
-version = "0.3.2"
+version = "0.4.0"
 description = "Pure Python driver for using and reconfiguring the CY7C652xx family of USB to SPI/I2C/UART bridge ICs."
 authors = [
   {name = "Jamie Smith", email = "smit109@usc.edu"},

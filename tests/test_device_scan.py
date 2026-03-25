@@ -317,7 +317,5 @@ def test_scan_for_device(mocker):
     ]
 
     context = cy_serial_bridge.CyScbContext()
-    result = context.scan_for_device(
-        vid=0x04B4, pids=0xE010, open_mode=cy_serial_bridge.OpenMode.I2C_CONTROLLER, serial_number="SomeOtherDevice"
-    )
+    result = context.scan_for_device(vid=0x04B4, pids=0xE010, serial_number="SomeOtherDevice")
     assert result.usb_device == other_device_i2c_desc

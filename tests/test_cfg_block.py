@@ -23,6 +23,8 @@ def test_cfg_block_generation():
     assert config_block.serial_number == "14224672048496620243684302669570"
     assert not config_block.capsense_on
     assert config_block.default_frequency == 100000
+    assert config_block.vbus_is_3v3 == False
+    assert config_block.is_self_powered == False
 
     # Make sure that we can modify the attributes which support being changed
     config_block.device_type = cy_serial_bridge.CyType.UART_CDC
@@ -43,6 +45,12 @@ def test_cfg_block_generation():
 
     config_block.default_frequency = 2056000
     assert config_block.default_frequency == 2056000
+
+    config_block.vbus_is_3v3 = True
+    assert config_block.vbus_is_3v3 == True
+
+    config_block.is_self_powered = True
+    assert config_block.is_self_powered == True
 
     # Also verify that strings can be changed to None and this works
     config_block.mfgr_string = None

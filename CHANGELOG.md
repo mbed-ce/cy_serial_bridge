@@ -48,6 +48,20 @@ Lorem Ipsum dolor sit amet.
 
 _______________________________________________________________________________
 
+## [0.4.0] - 2026-03-25
+
+### Added
+- `ConfigurationBlock` learned some new attributes: `uart_type`, `vbus_is_3v3`, `is_self_powered`
+- `CyMfgrIface.change_type()` now allows configuring the UART type when modifying a device, rather than always setting it to 6 wire
+    - The old behavior was causing bugs in my application due to the flow control pins being used by the serial bridge when they were not connected in HW
+- `OpenMode` now includes the UART type. The existing `OpenMode.UART` now sets 2 wire mode, while a new `OpenMode.USART` constant allows opening it in 4-wire mode 
+
+### Changed
+
+- `CyScbContext.scan_for_device()` no longer needs the open mode as an argument (this was not really being used and didn't make sense)
+
+_______________________________________________________________________________
+
 ## [0.3.2] - 2024-04-28
 
 ### Fixed
