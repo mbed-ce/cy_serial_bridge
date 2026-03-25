@@ -19,7 +19,18 @@ from cy_serial_bridge.driver import CySPIMode as CySPIMode
 from cy_serial_bridge.driver import I2CArbLostError as I2CArbLostError
 from cy_serial_bridge.driver import I2CBusError as I2CBusError
 from cy_serial_bridge.driver import I2CNACKError as I2CNACKError
-from cy_serial_bridge.usb_constants import CyType as CyType
+from cy_serial_bridge.usb_constants import (
+    DEFAULT_PID as DEFAULT_PID,
+)
+from cy_serial_bridge.usb_constants import (
+    DEFAULT_VID as DEFAULT_VID,
+)
+from cy_serial_bridge.usb_constants import (
+    DEFAULT_VIDS_PIDS as DEFAULT_VIDS_PIDS,
+)
+from cy_serial_bridge.usb_constants import (
+    CyType as CyType,
+)
 from cy_serial_bridge.utils import ByteSequence as ByteSequence
 from cy_serial_bridge.utils import CySerialBridgeError as CySerialBridgeError
 from cy_serial_bridge.utils import DiscoveredDevice as DiscoveredDevice
