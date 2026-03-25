@@ -241,7 +241,7 @@ class CyScbContext:
             pids = {pids}
 
         # pids will always be a set[int] at this point but mypy can't seem to figure that out
-        pids = cast(set[int], pids)
+        pids = cast("set[int]", pids)
 
         devices = self.list_devices({(vid, pid) for pid in pids})
 
@@ -297,7 +297,7 @@ class CyScbContext:
 
         # mypy isn't smart enough to understand that device_to_open cannot be None at this point
         # so we have to help it out.
-        device_to_open = cast(DiscoveredDevice, device_to_open)
+        device_to_open = cast("DiscoveredDevice", device_to_open)
 
         # If opening in UART CDC mode, we have to be able to detect the serial port in order to open the device
         if (
@@ -332,7 +332,7 @@ class CyScbContext:
             pids = {pids}
 
         # pids will always be a set[int] at this point but mypy can't seem to figure that out
-        pids = cast(set[int], pids)
+        pids = cast("set[int]", pids)
 
         device_to_open = self.scan_for_device(vid, pids, open_mode, serial_number)
 
@@ -389,7 +389,7 @@ class CyScbContext:
         else:
             # driver_class cannot be Serial at this time
             driver_class = cast(
-                type[Union[driver.CySPIControllerBridge, driver.CyI2CControllerBridge, driver.CyMfgrIface]],
+                "type[Union[driver.CySPIControllerBridge, driver.CyI2CControllerBridge, driver.CyMfgrIface]]",
                 driver_class,
             )
             return driver_class(self, device_to_open)

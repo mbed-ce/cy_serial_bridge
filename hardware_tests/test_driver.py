@@ -2,14 +2,16 @@ import logging
 import pathlib
 import random
 import time
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
-import serial
 
 import cy_serial_bridge
 from cy_serial_bridge import OpenMode
 from cy_serial_bridge.usb_constants import DEFAULT_PID, DEFAULT_VID
+
+if TYPE_CHECKING:
+    import serial
 
 """
 Test suite for the CY7C652xx driver.
@@ -39,7 +41,7 @@ def test_user_flash():
     # Note: the mode that we open the device in doesn't really matter, it can be anything
     # for this test
     with cast(
-        cy_serial_bridge.driver.CyMfgrIface, context.open_device(DEFAULT_VID, DEFAULT_PID, OpenMode.MFGR_INTERFACE)
+        "cy_serial_bridge.driver.CyMfgrIface", context.open_device(DEFAULT_VID, DEFAULT_PID, OpenMode.MFGR_INTERFACE)
     ) as dev:
         # Create a random 8-digit number which will be used in the test.
         # This ensures the flash is actually getting programmed and we aren't just reusing old data.
@@ -139,7 +141,7 @@ def test_i2c_config_set_get():
     input("Press [ENTER] when done...")
 
     with cast(
-        cy_serial_bridge.driver.CyI2CControllerBridge,
+        "cy_serial_bridge.driver.CyI2CControllerBridge",
         context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.I2C_CONTROLLER),
     ) as dev:
         print("Setting speed to 400kHz...")
@@ -164,7 +166,7 @@ def test_i2c_read_write():
     Test sending I2C read and write transactions
     """
     with cast(
-        cy_serial_bridge.driver.CyI2CControllerBridge,
+        "cy_serial_bridge.driver.CyI2CControllerBridge",
         context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.I2C_CONTROLLER),
     ) as dev:
         dev.set_i2c_configuration(cy_serial_bridge.driver.CyI2CConfig(400000))
@@ -232,7 +234,7 @@ def test_spi_config_read_write():
     input("Press [ENTER] when done...")
 
     with cast(
-        cy_serial_bridge.driver.CySPIControllerBridge,
+        "cy_serial_bridge.driver.CySPIControllerBridge",
         context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.SPI_CONTROLLER),
     ) as dev:
         config_1 = cy_serial_bridge.CySPIConfig(
@@ -336,7 +338,7 @@ def test_spi_read_write():
     Test using the CY7C652xx to read and write the EEPROM on the dev board
     """
     with cast(
-        cy_serial_bridge.driver.CySPIControllerBridge,
+        "cy_serial_bridge.driver.CySPIControllerBridge",
         context.open_device(DEFAULT_VID, {DEFAULT_PID}, OpenMode.SPI_CONTROLLER),
     ) as dev:
         eeprom_driver = M95M02Driver(dev)
@@ -363,7 +365,7 @@ def test_uart_loopback():
     input("Press [ENTER] when done...")
 
     serial_port: serial.Serial = cast(
-        serial.Serial, context.open_device(DEFAULT_VID, {DEFAULT_PID}, cy_serial_bridge.OpenMode.UART_CDC)
+        "serial.Serial", context.open_device(DEFAULT_VID, {DEFAULT_PID}, cy_serial_bridge.OpenMode.UART_CDC)
     )
     serial_port.baudrate = 3000000  # Theoretically fastest supported by CY7C652xx
     serial_port.timeout = 0.1  # Shouldn't take too long to see the loopback

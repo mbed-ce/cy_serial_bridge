@@ -5,7 +5,7 @@ import re
 import struct
 from typing import TYPE_CHECKING, cast
 
-from cy_serial_bridge.usb_constants import CY_CONFIG_STRING_MAX_LEN_BYTES, CY_DEVICE_CONFIG_SIZE, CyType
+from cy_serial_bridge.usb_constants import CY_CONFIG_STRING_MAX_LEN_BYTES, CY_DEVICE_CONFIG_SIZE, CyType, CyUARTType
 
 if TYPE_CHECKING:
     from cy_serial_bridge.utils import ByteSequence
@@ -160,6 +160,23 @@ class ConfigurationBlock:
             self._cfg_bytes[0x1D] = 0x03
 
     @property
+    def uart_type(self) -> CyUARTType:
+        """
+        Get the UART type (2/4/6 wire) if in UART mode.
+        """
+        if self.device_type not in {CyType.UART_VENDOR, CyType.UART_PHDC, CyType.UART_CDC}:
+            return CyUARTType.NONE
+        else:
+            return CyUARTType(self._cfg_bytes[0x28])
+
+    @uart_type.setter
+    def uart_type(self, value: CyUARTType) -> None:
+        if self.device_type not in {CyType.UART_VENDOR, CyType.UART_PHDC, CyType.UART_CDC}:
+            message = "Cannot set UART type if not in UART mode!"
+            raise ValueError(message)
+        self._cfg_bytes[0x28] = value.value
+
+    @property
     def config_format_version(self) -> tuple[int, int, int]:
         """
         Version of the configuration block format (major-minor-patch)
@@ -258,7 +275,7 @@ class ConfigurationBlock:
         Default UART baudrate or SPI/I2C clock frequency when the serial bridge initializes
         """
         # Baudrate is a three byte integer so we have to append a 0 MSByte
-        return cast(int, struct.unpack("<I", self._cfg_bytes[0x24:0x27] + b"\x00")[0])
+        return cast("int", struct.unpack("<I", self._cfg_bytes[0x24:0x27] + b"\x00")[0])
 
     @default_frequency.setter
     def default_frequency(self, value: int) -> None:
@@ -280,6 +297,33 @@ class ConfigurationBlock:
         self._cfg_bytes[8:12] = struct.pack("<I", self._calculate_checksum())
         return self._cfg_bytes
 
+    @property
+    def vbus_is_3v3(self) -> bool:
+        """
+        If true, the chip will expect 3.3V to be present on the VBUS pin.
+
+        This should generally be set for self-powered configurations and cleared for bus-powered configurations.
+        """
+        return self._cfg_bytes[0x90] == 1
+
+    @vbus_is_3v3.setter
+    def vbus_is_3v3(self, value: bool) -> None:
+        self._cfg_bytes[0x90] = int(value)
+
+    @property
+    def is_self_powered(self) -> bool:
+        """
+        Whether the device is configured as self-powered or not.
+
+        Note that I'm not sure if this impacts the operation of the device in any way, or if it's
+        just a flag for the USB descriptor.
+        """
+        return self._cfg_bytes[0x98] == 1
+
+    @is_self_powered.setter
+    def is_self_powered(self, value: bool) -> None:
+        self._cfg_bytes[0x98] = int(value)
+
     def __str__(self) -> str:
         """
         Dump the decodable information from this config block.
@@ -287,11 +331,14 @@ class ConfigurationBlock:
         return f"""ConfigurationBlock(
     config_format_version={".".join(str(part) for part in self.config_format_version)}
     device_type=CY_TYPE.{self.device_type.name},
+    uart_type={self.uart_type.name},
     vid=0x{self.vid:04x},
     pid=0x{self.pid:04x},
     mfgr_string=\"{self.mfgr_string}\",
     product_string=\"{self.product_string}\",
     serial_number=\"{self.serial_number}\",
     capsense_on={self.capsense_on},
-    default_frequency={self.default_frequency}
+    default_frequency={self.default_frequency},
+    vbus_is_3v3={self.vbus_is_3v3},
+    is_self_powered={self.is_self_powered}
 )"""

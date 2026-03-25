@@ -6,11 +6,10 @@ import logging
 import pathlib
 import random
 import sys
-from typing import Annotated, Optional, cast
+from typing import TYPE_CHECKING, Annotated, cast
 
 import click
 import rich
-import serial
 import typer
 import usb1
 from serial.tools import miniterm
@@ -18,6 +17,9 @@ from serial.tools import miniterm
 import cy_serial_bridge
 from cy_serial_bridge.usb_constants import DEFAULT_PID, DEFAULT_VID, CyI2c, CySpi, CyType, CyUart
 from cy_serial_bridge.utils import log
+
+if TYPE_CHECKING:
+    import serial
 
 app = typer.Typer(
     help="Cypress Serial Bridge CLI -- reconfigure CY7C652xx serial bridge chips and use them to communicate over UART/I2C/SPI"
@@ -36,7 +38,7 @@ def parse_vid_pid(value: str | int | None) -> int | None:
         val_int = value
     else:
         # value can only be str at this point but mypy can't figure that out
-        value = cast(str, value)
+        value = cast("str", value)
 
         try:
             val_int = int(value, 0)
@@ -83,7 +85,7 @@ class GlobalOptions:
 # Note: we know that this value will always be set via the global callback before any of the CLI commands run.
 # However, mypy doesn't and will generate errors that it might be None.  So, we annotate it as always having
 # a value even though it's None initially.
-global_opt: GlobalOptions = cast(GlobalOptions, None)
+global_opt: GlobalOptions = cast("GlobalOptions", None)
 
 
 # Global context instance.
@@ -95,7 +97,7 @@ context = cy_serial_bridge.CyScbContext()
 def handle_global_options(
     vid: Annotated[int, VIDOption] = DEFAULT_VID,
     pid: Annotated[int, PIDOption] = DEFAULT_PID,
-    serial_number: Annotated[Optional[str], SerialNumOption] = None,
+    serial_number: Annotated[str | None, SerialNumOption] = None,
     scb: Annotated[int, SCBOption] = 0,
     verbose: Annotated[bool, VerboseOption] = False,
 ) -> None:
@@ -122,7 +124,7 @@ OutputConfigurationArgument = typer.Argument(
 @app.command(help="Save configuration block from connected device to bin file")
 def save(file: Annotated[pathlib.Path, OutputConfigurationArgument]) -> None:
     with cast(
-        cy_serial_bridge.driver.CyMfgrIface,
+        "cy_serial_bridge.driver.CyMfgrIface",
         context.open_device(
             global_opt.vid, global_opt.pid, cy_serial_bridge.OpenMode.MFGR_INTERFACE, global_opt.serial_number
         ),
@@ -149,7 +151,7 @@ InputConfigurationArgument = typer.Argument(
 @app.command(help="Load configuration block to connected device from bin file")
 def load(file: Annotated[pathlib.Path, InputConfigurationArgument]) -> None:
     with cast(
-        cy_serial_bridge.driver.CyMfgrIface,
+        "cy_serial_bridge.driver.CyMfgrIface",
         context.open_device(
             global_opt.vid, global_opt.pid, cy_serial_bridge.OpenMode.MFGR_INTERFACE, global_opt.serial_number
         ),
@@ -200,16 +202,16 @@ SetPIDOption = typer.Option(
 @app.command(help="Change configuration of the connected device via the CLI")
 def reconfigure(
     randomize_serno: Annotated[bool, RandomizeSernoOption] = False,
-    set_serno: Annotated[Optional[str], SetSernoOption] = None,
-    set_vid: Annotated[Optional[int], SetVIDOption] = None,
-    set_pid: Annotated[Optional[int], SetPIDOption] = None,
+    set_serno: Annotated[str | None, SetSernoOption] = None,
+    set_vid: Annotated[int | None, SetVIDOption] = None,
+    set_pid: Annotated[int | None, SetPIDOption] = None,
 ) -> None:
     if randomize_serno and set_serno is not None:
         message = "You cannot pass both --randomize-serno and --set-serno at the same time!"
         raise typer.BadParameter(message)
 
     with cast(
-        cy_serial_bridge.driver.CyMfgrIface,
+        "cy_serial_bridge.driver.CyMfgrIface",
         context.open_device(
             global_opt.vid, global_opt.pid, cy_serial_bridge.OpenMode.MFGR_INTERFACE, global_opt.serial_number
         ),
@@ -303,7 +305,7 @@ def change_type(type: Annotated[str, TypeArgument]) -> None:  # noqa: A002
 
     dev: cy_serial_bridge.driver.CyMfgrIface
     with cast(
-        cy_serial_bridge.driver.CyMfgrIface,
+        "cy_serial_bridge.driver.CyMfgrIface",
         context.open_device(
             global_opt.vid, global_opt.pid, cy_serial_bridge.OpenMode.MFGR_INTERFACE, global_opt.serial_number
         ),
@@ -402,7 +404,7 @@ def i2c_write(
     freq: Annotated[int, I2CFreqOption] = CyI2c.MAX_FREQUENCY.value,
 ) -> None:
     with cast(
-        cy_serial_bridge.driver.CyI2CControllerBridge,
+        "cy_serial_bridge.driver.CyI2CControllerBridge",
         context.open_device(
             global_opt.vid, global_opt.pid, cy_serial_bridge.OpenMode.I2C_CONTROLLER, global_opt.serial_number
         ),
@@ -459,7 +461,7 @@ def spi_transaction(
     mode: Annotated[str, SPIModeArgument] = cy_serial_bridge.CySPIMode.MOTOROLA_MODE_0.name,
 ) -> None:
     with cast(
-        cy_serial_bridge.driver.CySPIControllerBridge,
+        "cy_serial_bridge.driver.CySPIControllerBridge",
         context.open_device(
             global_opt.vid, global_opt.pid, cy_serial_bridge.OpenMode.SPI_CONTROLLER, global_opt.serial_number
         ),
@@ -505,7 +507,7 @@ def serial_term(
 ) -> None:
     # Briefly open the serial bridge in UART CDC mode just to get it converted to the right mode
     with cast(
-        serial.Serial,
+        "serial.Serial",
         context.open_device(
             global_opt.vid, global_opt.pid, cy_serial_bridge.OpenMode.UART_CDC, global_opt.serial_number
         ),
@@ -567,7 +569,7 @@ def gpio(
     outstyle: Annotated[GpioOutputStyle, GpioOutputStyleOption] = GpioOutputStyle.ASCII,
 ) -> None:
     with cast(
-        cy_serial_bridge.driver.CyMfgrIface,
+        "cy_serial_bridge.driver.CyMfgrIface",
         context.open_device(
             global_opt.vid, global_opt.pid, cy_serial_bridge.OpenMode.MFGR_INTERFACE, global_opt.serial_number
         ),

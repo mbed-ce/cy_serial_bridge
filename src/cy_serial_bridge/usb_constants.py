@@ -61,6 +61,24 @@ class CyType(IntEnum):
     UART_PHDC = 7  # Used to indicate a device which is in PHDC (Personal Healthcare Device Class) UART mode
 
 
+class CyUARTType(IntEnum):
+    """
+    Enumeration of UART modes that the chip can be in
+    """
+
+    NONE = -1
+    """ Not in UART mode. """
+
+    TWO_WIRE = 0
+    """ 2-wire UART mode (Tx/Rx)"""
+
+    FOUR_WIRE = 1
+    """ 4-wire UART mode (Tx/Rx/RTS/CTS)"""
+
+    SIX_WIRE = 2
+    """ 6-wire UART mode (Tx/Rx/RTS/CTS/DSR/DTR)"""
+
+
 class CyVendorCmds(IntEnum):
     CY_GET_VERSION_CMD = 0xB0
     CY_GET_SIGNATURE_CMD = 0xBD

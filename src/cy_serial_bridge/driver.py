@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import struct
 import sys
 import time
@@ -83,8 +84,6 @@ class CySerBridgeBase:
 
         if self.cy_type == CyType.MFG and self.discovered_dev.curr_cytype == CyType.UART_CDC:
             if sys.platform == "darwin":
-                import os
-
                 if os.geteuid() != 0:
                     message = (
                         "Access to the manufacturer interface of a device in UART CDC mode on MacOS requires elevation. "
@@ -158,7 +157,7 @@ class CySerBridgeBase:
                 target_interface = self.discovered_dev.mfg_interface_settings
             else:
                 # Interface to use is the SCB interface
-                target_interface = cast(usb1.USBInterfaceSetting, self.discovered_dev.scb_interface_settings)
+                target_interface = cast("usb1.USBInterfaceSetting", self.discovered_dev.scb_interface_settings)
 
             #
             # NOTE:
@@ -259,7 +258,7 @@ class CySerBridgeBase:
         #
         # } CY_FIRMWARE_VERSION, *PCY_FIRMWARE_VERSION;
 
-        return cast(tuple[int, int, int, int], struct.unpack("<BBHI", firmware_version_bytes))
+        return cast("tuple[int, int, int, int]", struct.unpack("<BBHI", firmware_version_bytes))
 
     def get_signature(self) -> ByteSequence:
         """
@@ -274,7 +273,7 @@ class CySerBridgeBase:
         w_length = CY_GET_SIGNATURE_LEN
 
         return cast(
-            ByteSequence, self.dev.controlRead(bm_request_type, bm_request, w_value, w_index, w_length, self.timeout)
+            "ByteSequence", self.dev.controlRead(bm_request_type, bm_request, w_value, w_index, w_length, self.timeout)
         )
 
     def reset_device(self) -> None:
@@ -489,7 +488,7 @@ class CyMfgrIface(CySerBridgeBase):
         w_length = 512
 
         return cast(
-            bytearray, self.dev.controlRead(bm_request_type, bm_request, w_value, w_index, w_length, self.timeout)
+            "bytearray", self.dev.controlRead(bm_request_type, bm_request, w_value, w_index, w_length, self.timeout)
         )
 
     def write_config(self, config: ConfigurationBlock) -> int:
@@ -612,7 +611,7 @@ class CyI2CControllerBridge(CySerBridgeBase):
         :param mode: Either CyI2c.MODE_WRITE or CyI2c.MODE_READ
         """
         return cast(
-            ByteSequence,
+            "ByteSequence",
             self.dev.controlRead(
                 request_type=CY_VENDOR_REQUEST_DEVICE_TO_HOST,
                 request=CyVendorCmds.CY_I2C_GET_STATUS_CMD,
@@ -756,7 +755,9 @@ class CyI2CControllerBridge(CySerBridgeBase):
         # Get data
         try:
             read_data: bytearray = self.dev.bulkRead(self.ep_in, size, timeout=io_timeout)
-            post_transfer_status = self.dev.interruptRead(self.ep_intr, CyI2c.EVENT_NOTIFICATION_LEN, io_timeout)
+            post_transfer_status: ByteSequence = self.dev.interruptRead(
+                self.ep_intr, CyI2c.EVENT_NOTIFICATION_LEN, io_timeout
+            )
 
         except usb1.USBErrorPipe as ex:
             # Attempt to handle pipe errors similarly to how the original driver did.
@@ -849,7 +850,9 @@ class CyI2CControllerBridge(CySerBridgeBase):
         # Send data
         try:
             self.dev.bulkWrite(self.ep_out, data, timeout=io_timeout)
-            post_transfer_status = self.dev.interruptRead(self.ep_intr, CyI2c.EVENT_NOTIFICATION_LEN, io_timeout)
+            post_transfer_status: ByteSequence = self.dev.interruptRead(
+                self.ep_intr, CyI2c.EVENT_NOTIFICATION_LEN, io_timeout
+            )
         except usb1.USBErrorPipe as ex:
             # Attempt to handle pipe errors similarly to how the original driver did.
             # Basically, we reset the hardware and re-query the status.
@@ -980,7 +983,7 @@ class CySPIControllerBridge(CySerBridgeBase):
         Compute a reasonable timeout for an SPI transaction.
         """
         # Assume 9 bit times per byte plus 1 second wiggle room
-        return 1000 + ceil(1000 * transaction_size_bytes * (1 / cast(int, self._curr_frequency)) * 9)
+        return 1000 + ceil(1000 * transaction_size_bytes * (1 / cast("int", self._curr_frequency)) * 9)
 
     def _spi_reset(self) -> None:
         """
@@ -1283,7 +1286,7 @@ class CySPIControllerBridge(CySerBridgeBase):
                     message = "Timeout waiting for SPI write completion!"
                     raise CySerialBridgeError(message)
 
-            return cast(ByteSequence, rx_transfer.getBuffer())
+            return rx_transfer.getBuffer()
 
         except Exception:
             # If anything went wrong, try and reset the SPI module so that the next transaction works
