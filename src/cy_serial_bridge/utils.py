@@ -59,6 +59,12 @@ class DiscoveredDevice:
     # Product ID
     pid: int
 
+    # SCB index (0 or 1)
+    scb: int
+
+    # Is this a dual channel device?
+    is_dual_channel: bool
+
     # Current CyType setting (SPI, I2C, or UART)
     curr_cytype: CyType
 

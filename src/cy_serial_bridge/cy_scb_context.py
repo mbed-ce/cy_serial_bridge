@@ -64,14 +64,24 @@ class CyScbContext:
         Uses pyserial to do the hard work. If no device is found, returns None
         """
         serial_port_generator: Sequence[list_ports_common.ListPortInfo] = list_ports.comports()
+        matches = []
         for serial_port in serial_port_generator:
             if serial_port.serial_number is not None:
                 # Note: Testing on Windows, the serial number always gets converted to uppercase.
                 # So we have to lowercase both values before comparing them.
                 if serial_port.serial_number.lower() == serial_number.lower():
-                    return serial_port.device
+                    matches.append(serial_port.device)
 
-        return None
+        # If there was exactly one match, return it.
+        # I suspect that, if you have a dual channel device with both channels in CDC mode,
+        # this might produce multiple matches since both will be associated with that serial number
+        # (though, at least on my test machine, Windows can't seem to associate either channel with
+        # the serial number so you get no matches). If this does happen, also return None since an
+        # unambiguous matching isn't known.
+        if len(matches) == 1:
+            return matches[0]
+        else:
+            return None
 
     def list_devices(
         self,
@@ -84,10 +94,13 @@ class CyScbContext:
         If the vid and pid set is left at the default, only the driver default vid and pid will be used.
         If the vid and pid set is set to None, all devices which *could* be CY6C652xx chips are returned.
 
-        Note: For each PID value, both the even value (pid & 0xFFFE) and the odd value ((pid & 0xFFFE) + 1)
-        will be considered.  This is to support UART CDC mode (see the README)
+        Note: The lower 2 bits of the PID value will not be compared (always assumed to match).
+            This is to support UART CDC mode (see the README).
         """
         device_list: list[DiscoveredDevice] = []
+
+        pid_mask = 0xFFFC
+        vid_pids_to_search_for = {(vid, pid & pid_mask) for vid, pid in vid_pids} if vid_pids is not None else None
 
         # In my testing, on Windows, this is needed in order to correctly detect re-enumerated devices
         # in some cases.  Seems to be some sort of libusb bug...
@@ -97,10 +110,8 @@ class CyScbContext:
 
         dev: usb1.USBDevice
         for dev in self.usb_context.getDeviceIterator(skip_on_error=True):
-            even_vid_pid = (dev.getVendorID(), dev.getProductID() & 0xFFFE)
-            odd_vid_pid = (dev.getVendorID(), (dev.getProductID() & 0xFFFE) + 1)
-
-            if vid_pids is not None and even_vid_pid not in vid_pids and odd_vid_pid not in vid_pids:
+            vid_pid = (dev.getVendorID(), dev.getProductID() & pid_mask)
+            if vid_pids_to_search_for is not None and vid_pid not in vid_pids_to_search_for:
                 # Not a VID-PID we're looking for
                 continue
 
@@ -109,116 +120,136 @@ class CyScbContext:
                 continue
             cfg: usb1.USBConfiguration = dev[0]
 
-            # CY7C652xx devices always have either two or three interfaces: potentially one for the USB CDC COM port,
-            # one for the actual USB-serial bridge, and one for the configuration interface.
-            if cfg.getNumInterfaces() != 2 and cfg.getNumInterfaces() != 3:
+            # CY7C652xx devices always have between two and five configurations. A single-channel chip in
+            # SPI/I2C mode will have two (one for the vendor interface and one for the manufacturer interface).
+            # A dual-channel chip in UART mode will have five: two per COM port and the manufacturer interface).
+            if cfg.getNumInterfaces() < 2 or cfg.getNumInterfaces() > 5:
                 continue
 
-            usb_cdc_interface_settings: usb1.USBInterfaceSetting | None = None
-            cdc_data_interface_settings: usb1.USBInterfaceSetting | None = None
-            scb_interface_settings: usb1.USBInterfaceSetting | None = None
-            mfg_interface_settings: usb1.USBInterfaceSetting
+            # Does this look like a single or dual channel chip?
+            scb_0_looks_like_cdc = cfg[0][0].getClass() == USBClass.CDC
+            looks_like_dual_channel = cfg.getNumInterfaces() > 3 if scb_0_looks_like_cdc else cfg.getNumInterfaces() > 2
 
-            if cfg.getNumInterfaces() == 3 and cfg[0][0].getClass() == USBClass.CDC:
-                # USB CDC mode
-                usb_cdc_interface_settings = cfg[0][0]
-                cdc_data_interface_settings = cfg[1][0]
-                mfg_interface_settings = cfg[2][0]
-
-                # Check USB CDC interface
-                if usb_cdc_interface_settings.getSubClass() != 0x2:
-                    continue
-
-                # Check CDC Data interface
-                if cdc_data_interface_settings.getClass() != 0x0A or cdc_data_interface_settings.getSubClass() != 0x0:
-                    continue
-
-                curr_cytype = CyType.UART_CDC
-
-            else:
-                # USB vendor mode
-                scb_interface_settings = cfg[0][0]
-                mfg_interface_settings = cfg[1][0]
-
-                # Check SCB interface -- the Class should be 0xFF (vendor defined/no rules)
-                # and the SubClass value gives the CyType
-                if scb_interface_settings.getClass() != USBClass.VENDOR:
-                    continue
-                if scb_interface_settings.getSubClass() not in {
-                    CyType.UART_VENDOR.value,
-                    CyType.SPI.value,
-                    CyType.I2C.value,
-                }:
-                    continue
-
-                # Check SCB endpoints
-                if scb_interface_settings.getNumEndpoints() != 3:
-                    continue
-                # Bulk host-to-dev endpoint
-                if (
-                    scb_interface_settings[0].getAddress() != 0x01
-                    or (scb_interface_settings[0].getAttributes() & 0x3) != 2
-                ):
-                    continue
-                # Bulk dev-to-host endpoint
-                if (
-                    scb_interface_settings[1].getAddress() != 0x82
-                    or (scb_interface_settings[1].getAttributes() & 0x3) != 2
-                ):
-                    continue
-                # Interrupt dev-to-host endpoint
-                if (
-                    scb_interface_settings[2].getAddress() != 0x83
-                    or (scb_interface_settings[2].getAttributes() & 0x3) != 3
-                ):
-                    continue
-
-                curr_cytype = CyType(scb_interface_settings.getSubClass())
-
-            # Check manufacturer interface.
-            # It has a defined class/subclass and has no endpoints
-            if mfg_interface_settings.getClass() != 0xFF:
-                continue
-            if mfg_interface_settings.getSubClass() != CyType.MFG:
-                continue
-            if mfg_interface_settings.getNumEndpoints() != 0:
-                continue
-
-            # If we got all the way here, it looks like a CY6C652xx device!
-            # Record attributes and add it to the list
-            list_entry = DiscoveredDevice(
-                usb_device=dev,
-                usb_configuration=cfg,
-                mfg_interface_settings=mfg_interface_settings,
-                scb_interface_settings=scb_interface_settings,
-                usb_cdc_interface_settings=usb_cdc_interface_settings,
-                cdc_data_interface_settings=cdc_data_interface_settings,
-                vid=dev.getVendorID(),
-                pid=dev.getProductID(),
-                curr_cytype=curr_cytype,
-                open_failed=False,
-            )
-            try:
-                opened_device = dev.open()
-                list_entry.manufacturer_str = opened_device.getManufacturer()
-                list_entry.product_str = opened_device.getProduct()
-                list_entry.serial_number = opened_device.getSerialNumber()
-            except usb1.USBError:
-                list_entry.open_failed = True
-
-            # Iff this is a CDC serial device, find its associated COM port.
-            # Luckily, pyserial does the hard work of talking to the OS for us here.
-            if curr_cytype == CyType.UART_CDC and not list_entry.open_failed:
-                if list_entry.serial_number is None:
-                    log.warning(
-                        "Discovered CY7C652xx device in UART mode with no serial number configured.  Will "
-                        "not be able to open a terminal to this device until it is configured with a "
-                        "serial number."
-                    )
+            for scb_idx in range(2 if looks_like_dual_channel else 1):
+                # Which interface do we start looking at?
+                if scb_idx == 0:
+                    first_interface_idx = 0
+                elif scb_0_looks_like_cdc:
+                    first_interface_idx = 2
                 else:
-                    list_entry.serial_port_name = self._find_serial_port_name_for_serno(list_entry.serial_number)
+                    first_interface_idx = 1
 
-            device_list.append(list_entry)
+                usb_cdc_interface_settings: usb1.USBInterfaceSetting | None = None
+                cdc_data_interface_settings: usb1.USBInterfaceSetting | None = None
+                scb_interface_settings: usb1.USBInterfaceSetting | None = None
+                mfg_interface_settings: usb1.USBInterfaceSetting
+
+                if cfg[first_interface_idx][0].getClass() == USBClass.CDC:
+                    # USB CDC mode
+                    usb_cdc_interface_settings = cfg[first_interface_idx][0]
+                    cdc_data_interface_settings = cfg[first_interface_idx + 1][0]
+                    mfg_interface_settings = cfg[cfg.getNumInterfaces() - 1][0]
+
+                    # Check USB CDC interface
+                    if usb_cdc_interface_settings.getSubClass() != 0x2:
+                        continue
+
+                    # Check CDC Data interface
+                    if (
+                        cdc_data_interface_settings.getClass() != 0x0A
+                        or cdc_data_interface_settings.getSubClass() != 0x0
+                    ):
+                        continue
+
+                    curr_cytype = CyType.UART_CDC
+
+                else:
+                    # USB vendor mode
+                    scb_interface_settings = cfg[first_interface_idx][0]
+                    mfg_interface_settings = cfg[cfg.getNumInterfaces() - 1][0]
+
+                    # Check SCB interface -- the Class should be 0xFF (vendor defined/no rules)
+                    # and the SubClass value gives the CyType
+                    if scb_interface_settings.getClass() != USBClass.VENDOR:
+                        continue
+                    if scb_interface_settings.getSubClass() not in {
+                        CyType.UART_VENDOR.value,
+                        CyType.SPI.value,
+                        CyType.I2C.value,
+                    }:
+                        continue
+
+                    # Check SCB endpoints
+                    if scb_interface_settings.getNumEndpoints() != 3:
+                        continue
+                    # Bulk host-to-dev endpoint
+                    if (
+                        scb_interface_settings[0].getAddress() != (0x01 if scb_idx == 0 else 0x04)
+                        or (scb_interface_settings[0].getAttributes() & 0x3) != 2
+                    ):
+                        continue
+                    # Bulk dev-to-host endpoint
+                    if (
+                        scb_interface_settings[1].getAddress() != (0x82 if scb_idx == 0 else 0x85)
+                        or (scb_interface_settings[1].getAttributes() & 0x3) != 2
+                    ):
+                        continue
+                    # Interrupt dev-to-host endpoint
+                    if (
+                        scb_interface_settings[2].getAddress() != (0x83 if scb_idx == 0 else 0x86)
+                        or (scb_interface_settings[2].getAttributes() & 0x3) != 3
+                    ):
+                        continue
+
+                    curr_cytype = CyType(scb_interface_settings.getSubClass())
+
+                # Check manufacturer interface.
+                # It has a defined class/subclass and has no endpoints
+                if mfg_interface_settings.getClass() != 0xFF:
+                    continue
+                if mfg_interface_settings.getSubClass() != CyType.MFG:
+                    continue
+                if mfg_interface_settings.getNumEndpoints() != 0:
+                    continue
+
+                # If we got all the way here, it looks like a CY6C652xx device!
+                # Record attributes and add it to the list
+                list_entry = DiscoveredDevice(
+                    usb_device=dev,
+                    usb_configuration=cfg,
+                    mfg_interface_settings=mfg_interface_settings,
+                    scb_interface_settings=scb_interface_settings,
+                    usb_cdc_interface_settings=usb_cdc_interface_settings,
+                    cdc_data_interface_settings=cdc_data_interface_settings,
+                    vid=dev.getVendorID(),
+                    pid=dev.getProductID(),
+                    scb=scb_idx,
+                    is_dual_channel=looks_like_dual_channel,
+                    curr_cytype=curr_cytype,
+                    open_failed=False,
+                )
+                try:
+                    opened_device = dev.open()
+                    list_entry.manufacturer_str = opened_device.getManufacturer()
+                    list_entry.product_str = opened_device.getProduct()
+                    list_entry.serial_number = opened_device.getSerialNumber()
+                    opened_device.close()
+                except usb1.USBError:
+                    list_entry.open_failed = True
+
+                # Iff this is a CDC serial device, find its associated COM port.
+                # Luckily, pyserial does the hard work of talking to the OS for us here.
+                if curr_cytype == CyType.UART_CDC and not list_entry.open_failed:
+                    if list_entry.serial_number is None:
+                        log.warning(
+                            "Discovered CY7C652xx device in UART mode with no serial number configured.  Will "
+                            "not be able to open a terminal to this device until it is configured with a "
+                            "serial number."
+                        )
+                    else:
+                        list_entry.serial_port_name = self._find_serial_port_name_for_serno(list_entry.serial_number)
+
+                device_list.append(list_entry)
 
         return device_list
 

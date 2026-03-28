@@ -153,6 +153,8 @@ ignore = [
     'SIM102',  # Allow multiple nested if statements.  Sometimes it's nice for readability
     'UP031',   # Allow percent formatting, it can be useful sometimes!
     'PLC0414', # Allow 'import x as x', needed for exporting type names
+    'C901',    # Complexity
+    'PLR0912', # Too many branches
 ]
 exclude = ["stubs/*"]
 
