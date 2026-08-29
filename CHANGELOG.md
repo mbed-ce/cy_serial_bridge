@@ -1,4 +1,4 @@
-# project-name Changelog
+# cy_serial_bridge Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -45,6 +45,17 @@ Lorem Ipsum dolor sit amet.
 - Updated localisation files
 
 -->
+
+
+_______________________________________________________________________________
+
+## [0.5.0] - 2026-08-29
+
+### Added
+- Added support for opening (but not configuring, yet!) dual-channel devices such as CY7C65215
+
+### Fixed
+- Fixed opening a bridge in `OpenMode.USART_CDC` not returning a Serial object
 
 _______________________________________________________________________________
 
