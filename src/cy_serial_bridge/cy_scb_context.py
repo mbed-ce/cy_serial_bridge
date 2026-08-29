@@ -409,7 +409,7 @@ class CyScbContext:
             log.info(f"Changed type of device in {time.time() - change_type_start_time:.04f} sec")
 
         # Step 3: Instantiate the driver!
-        if open_mode == OpenMode.UART_CDC:
+        if needed_cytype == CyType.UART_CDC:
             if device_to_open.serial_port_name is None:
                 message = (
                     "Cannot open this device as cy_serial_bridge could not determine the COM port/"
