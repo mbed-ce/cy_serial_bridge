@@ -340,19 +340,20 @@ def scan(scan_all: Annotated[bool, ScanAllOption] = False) -> None:
     else:
         print("Detected Devices:")
         for device in devices:
+            scb_str = f"[bold]SCB[/bold] {device.scb} " if device.is_dual_channel else ""
             rich.print(
-                f"- [bold yellow]{device.vid:04x}[/bold yellow]:[bold yellow]{device.pid:04x}[/bold yellow] ([bold]Type:[/bold] {device.curr_cytype.name})",
+                f"- [bold yellow]{device.vid:04x}[/bold yellow]:[bold yellow]{device.pid:04x}[/bold yellow] {scb_str}([bold]Type:[/bold] {device.curr_cytype.name})",
                 end="",
             )
 
             if device.open_failed:
                 if sys.platform == "win32":
                     rich.print(
-                        "[red]<Open failed, cannot get name, com port, or serno.  Attach WinUSB driver with Zadig!>[/red]"
+                        "[red]<Open failed, cannot get name, com port, or serno. Attach WinUSB driver with Zadig!>[/red]"
                     )
                 else:
                     rich.print(
-                        "[red]<Open failed, cannot get name, tty, or serial number.  Check udev rules and permissions.>[/red]"
+                        "[red]<Open failed, cannot get name, tty, or serial number. Check udev rules and permissions.>[/red]"
                     )
             else:
                 rich.print(

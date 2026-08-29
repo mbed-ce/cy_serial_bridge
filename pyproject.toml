@@ -3,7 +3,7 @@ name = "cy_serial_bridge"
 # this is used by Ruff to disable "upgrade to feature x" inspections where x was added
 # after the given version
 requires-python = ">=3.10"
-version = "0.4.1"
+version = "0.5.0"
 description = "Pure Python driver for using and reconfiguring the CY7C652xx family of USB to SPI/I2C/UART bridge ICs."
 authors = [
   {name = "Jamie Smith", email = "smit109@usc.edu"},
@@ -153,6 +153,8 @@ ignore = [
     'SIM102',  # Allow multiple nested if statements.  Sometimes it's nice for readability
     'UP031',   # Allow percent formatting, it can be useful sometimes!
     'PLC0414', # Allow 'import x as x', needed for exporting type names
+    'C901',    # Complexity
+    'PLR0912', # Too many branches
 ]
 exclude = ["stubs/*"]
 

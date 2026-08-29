@@ -422,6 +422,10 @@ class CyMfgrIface(CySerBridgeBase):
         :param scb_index: Index of the SCB to open, for multi-port devices
         :param timeout: Timeout to use for USB operations in milliseconds
         """
+        if discovered_dev.is_dual_channel:
+            message = "Reconfiguring dual-channel devices not implemented yet."
+            raise NotImplementedError(message)
+
         super().__init__(context, discovered_dev, CyType.MFG, scb_index, timeout)
 
     ######################################################################

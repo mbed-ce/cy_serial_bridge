@@ -97,6 +97,9 @@ class MockUSBDeviceHandle:
     def getSerialNumber(self):
         return self.serno
 
+    def close(self):
+        return
+
 
 class MockUSBDevice(Sequence):
     """Top-level mock of usb1.USBDevice"""
@@ -219,6 +222,147 @@ CY7C65211_UART_CDC_MODE_DESCRIPTOR = MockUSBDevice(
     ],
 )
 
+# This is what a CY7C65215 looks like with both ports in UART mode
+CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR = MockUSBDevice(
+    vid=0x04B4,
+    pid=0xE013,
+    handle=MockUSBDeviceHandle(manufacturer="SomeMfg", product="SomeProduct", serno="SomeSerno"),
+    configs=[
+        MockUSBConfiguration(
+            [
+                MockUSBInterface(
+                    settings=[
+                        MockUSBInterfaceSetting(
+                            class_subclass=(0x2, 0x2),
+                            endpoints=[
+                                MockUSBEndpoint(address=0x83, attributes=3),
+                            ],
+                        )
+                    ]
+                ),
+                MockUSBInterface(
+                    settings=[
+                        MockUSBInterfaceSetting(
+                            class_subclass=(0x0A, 0x00),
+                            endpoints=[
+                                MockUSBEndpoint(address=0x01, attributes=2),
+                                MockUSBEndpoint(address=0x82, attributes=2),
+                            ],
+                        )
+                    ]
+                ),
+                MockUSBInterface(
+                    settings=[
+                        MockUSBInterfaceSetting(
+                            class_subclass=(0x2, 0x2),
+                            endpoints=[
+                                MockUSBEndpoint(address=0x86, attributes=3),
+                            ],
+                        )
+                    ]
+                ),
+                MockUSBInterface(
+                    settings=[
+                        MockUSBInterfaceSetting(
+                            class_subclass=(0x0A, 0x00),
+                            endpoints=[
+                                MockUSBEndpoint(address=0x04, attributes=2),
+                                MockUSBEndpoint(address=0x85, attributes=2),
+                            ],
+                        )
+                    ]
+                ),
+                MockUSBInterface(settings=[MockUSBInterfaceSetting(class_subclass=(0xFF, 0x05), endpoints=[])]),
+            ]
+        )
+    ],
+)
+
+# This is what a CY7C65215 looks like with SCB 0 in UART mode and SCB 1 in Vendor SPI mode
+CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR = MockUSBDevice(
+    vid=0x04B4,
+    pid=0xE011,
+    handle=MockUSBDeviceHandle(manufacturer="SomeMfg", product="SomeProduct", serno="SomeSerno"),
+    configs=[
+        MockUSBConfiguration(
+            [
+                MockUSBInterface(
+                    settings=[
+                        MockUSBInterfaceSetting(
+                            class_subclass=(0x2, 0x2),
+                            endpoints=[
+                                MockUSBEndpoint(address=0x83, attributes=3),
+                            ],
+                        )
+                    ]
+                ),
+                MockUSBInterface(
+                    settings=[
+                        MockUSBInterfaceSetting(
+                            class_subclass=(0x0A, 0x00),
+                            endpoints=[
+                                MockUSBEndpoint(address=0x01, attributes=2),
+                                MockUSBEndpoint(address=0x82, attributes=2),
+                            ],
+                        )
+                    ]
+                ),
+                MockUSBInterface(
+                    settings=[
+                        MockUSBInterfaceSetting(
+                            class_subclass=(0xFF, 0x2),
+                            endpoints=[
+                                MockUSBEndpoint(address=0x04, attributes=2),
+                                MockUSBEndpoint(address=0x85, attributes=2),
+                                MockUSBEndpoint(address=0x86, attributes=3),
+                            ],
+                        )
+                    ]
+                ),
+                MockUSBInterface(settings=[MockUSBInterfaceSetting(class_subclass=(0xFF, 0x05), endpoints=[])]),
+            ]
+        )
+    ],
+)
+
+# This is what a CY7C65215 looks like with SCB 0 in Vendor I2C mode and SCB 1 in Vendor SPI mode
+CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR = MockUSBDevice(
+    vid=0x04B4,
+    pid=0xE010,
+    handle=MockUSBDeviceHandle(manufacturer="SomeMfg", product="SomeProduct", serno="SomeSerno"),
+    configs=[
+        MockUSBConfiguration(
+            [
+                MockUSBInterface(
+                    settings=[
+                        MockUSBInterfaceSetting(
+                            class_subclass=(0xFF, 0x3),
+                            endpoints=[
+                                MockUSBEndpoint(address=0x01, attributes=2),
+                                MockUSBEndpoint(address=0x82, attributes=2),
+                                MockUSBEndpoint(address=0x83, attributes=3),
+                            ],
+                        )
+                    ]
+                ),
+                MockUSBInterface(
+                    settings=[
+                        MockUSBInterfaceSetting(
+                            class_subclass=(0xFF, 0x2),
+                            endpoints=[
+                                MockUSBEndpoint(address=0x04, attributes=2),
+                                MockUSBEndpoint(address=0x85, attributes=2),
+                                MockUSBEndpoint(address=0x86, attributes=3),
+                            ],
+                        )
+                    ]
+                ),
+                MockUSBInterface(settings=[MockUSBInterfaceSetting(class_subclass=(0xFF, 0x05), endpoints=[])]),
+            ]
+        )
+    ],
+)
+
 
 def test_scan_cy7c65211_i2c(mocker):
     """
@@ -237,6 +381,8 @@ def test_scan_cy7c65211_i2c(mocker):
             cdc_data_interface_settings=None,
             vid=0x04B4,
             pid=0xE010,
+            scb=0,
+            is_dual_channel=False,
             curr_cytype=CyType.I2C,
             open_failed=False,
             manufacturer_str="SomeMfg",
@@ -264,6 +410,8 @@ def test_scan_cy7c65211_spi(mocker):
             cdc_data_interface_settings=None,
             vid=0x04B4,
             pid=0xE010,
+            scb=0,
+            is_dual_channel=False,
             curr_cytype=CyType.SPI,
             open_failed=False,
             manufacturer_str="SomeMfg",
@@ -295,6 +443,8 @@ def test_scan_cy7c65211_uart(mocker):
             cdc_data_interface_settings=CY7C65211_UART_CDC_MODE_DESCRIPTOR[0][1][0],  # type: ignore[reportArgumentType]
             vid=0x04B4,
             pid=0xE011,
+            scb=0,
+            is_dual_channel=False,
             curr_cytype=CyType.UART_CDC,
             open_failed=False,
             manufacturer_str="SomeMfg",
@@ -302,6 +452,157 @@ def test_scan_cy7c65211_uart(mocker):
             serial_number="SomeSerno",
             serial_port_name="/dev/ttyACM1",
         )
+    ]
+
+
+def test_scan_cy7c65215_double_uart(mocker):
+    """
+    Test that we can find a CY7C65215 in double UART mode and locate the associated serial ports
+    """
+    mocker.patch("usb1.USBContext.getDeviceIterator").return_value = [CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR]
+    mocker.patch("cy_serial_bridge.cy_scb_context.list_ports.comports").return_value = [
+        # Duplicate serial number used here on purpose
+        MockListPortInfo("SomeSerno", "/dev/ttyACM1"),
+        MockListPortInfo("SomeSerno", "/dev/ttyACM2"),
+        MockListPortInfo("SomeOtherSerno", "/dev/ttyACM3"),
+    ]
+
+    context = cy_serial_bridge.CyScbContext()
+    assert context.list_devices() == [
+        cy_serial_bridge.DiscoveredDevice(
+            usb_device=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR,  # type: ignore[reportArgumentType]
+            usb_configuration=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR[0],  # type: ignore[reportArgumentType]
+            mfg_interface_settings=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR[0][4][0],  # type: ignore[reportArgumentType]
+            scb_interface_settings=None,
+            usb_cdc_interface_settings=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR[0][0][0],  # type: ignore[reportArgumentType]
+            cdc_data_interface_settings=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR[0][1][0],  # type: ignore[reportArgumentType]
+            vid=0x04B4,
+            pid=0xE013,
+            scb=0,
+            is_dual_channel=True,
+            curr_cytype=CyType.UART_CDC,
+            open_failed=False,
+            manufacturer_str="SomeMfg",
+            product_str="SomeProduct",
+            serial_number="SomeSerno",
+            serial_port_name=None,
+        ),
+        cy_serial_bridge.DiscoveredDevice(
+            usb_device=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR,  # type: ignore[reportArgumentType]
+            usb_configuration=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR[0],  # type: ignore[reportArgumentType]
+            mfg_interface_settings=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR[0][4][0],  # type: ignore[reportArgumentType]
+            scb_interface_settings=None,
+            usb_cdc_interface_settings=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR[0][2][0],  # type: ignore[reportArgumentType]
+            cdc_data_interface_settings=CY7C65215_DOUBLE_UART_CDC_MODE_DESCRIPTOR[0][3][0],  # type: ignore[reportArgumentType]
+            vid=0x04B4,
+            pid=0xE013,
+            scb=1,
+            is_dual_channel=True,
+            curr_cytype=CyType.UART_CDC,
+            open_failed=False,
+            manufacturer_str="SomeMfg",
+            product_str="SomeProduct",
+            serial_number="SomeSerno",
+            serial_port_name=None,
+        ),
+    ]
+
+
+def test_scan_cy7c65215_i2c_spi(mocker):
+    """
+    Test that we can find a CY7C65215 in double UART mode and locate the associated serial ports
+    """
+    mocker.patch("usb1.USBContext.getDeviceIterator").return_value = [CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR]
+    mocker.patch("cy_serial_bridge.cy_scb_context.list_ports.comports").return_value = [
+        MockListPortInfo("SomeSerno", "/dev/ttyACM1"),
+        MockListPortInfo("SomeOtherSerno", "/dev/ttyACM3"),
+    ]
+
+    context = cy_serial_bridge.CyScbContext()
+    assert context.list_devices() == [
+        cy_serial_bridge.DiscoveredDevice(
+            usb_device=CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR,  # type: ignore[reportArgumentType]
+            usb_configuration=CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR[0],  # type: ignore[reportArgumentType]
+            mfg_interface_settings=CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR[0][3][0],  # type: ignore[reportArgumentType]
+            scb_interface_settings=None,
+            usb_cdc_interface_settings=CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR[0][0][0],  # type: ignore[reportArgumentType]
+            cdc_data_interface_settings=CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR[0][1][0],  # type: ignore[reportArgumentType]
+            vid=0x04B4,
+            pid=0xE011,
+            scb=0,
+            is_dual_channel=True,
+            curr_cytype=CyType.UART_CDC,
+            open_failed=False,
+            manufacturer_str="SomeMfg",
+            product_str="SomeProduct",
+            serial_number="SomeSerno",
+            serial_port_name="/dev/ttyACM1",
+        ),
+        cy_serial_bridge.DiscoveredDevice(
+            usb_device=CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR,  # type: ignore[reportArgumentType]
+            usb_configuration=CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR[0],  # type: ignore[reportArgumentType]
+            mfg_interface_settings=CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR[0][3][0],  # type: ignore[reportArgumentType]
+            scb_interface_settings=CY7C65215_UART_CDC_SPI_VENDOR_DESCRIPTOR[0][2][0],  # type: ignore[reportArgumentType]
+            usb_cdc_interface_settings=None,
+            cdc_data_interface_settings=None,
+            vid=0x04B4,
+            pid=0xE011,
+            scb=1,
+            is_dual_channel=True,
+            curr_cytype=CyType.SPI,
+            open_failed=False,
+            manufacturer_str="SomeMfg",
+            product_str="SomeProduct",
+            serial_number="SomeSerno",
+            serial_port_name=None,
+        ),
+    ]
+
+
+def test_scan_cy7c65215_uart_spi(mocker):
+    """
+    Test that we can find a CY7C65215 in double UART mode and locate the associated serial ports
+    """
+    mocker.patch("usb1.USBContext.getDeviceIterator").return_value = [CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR]
+
+    context = cy_serial_bridge.CyScbContext()
+    assert context.list_devices() == [
+        cy_serial_bridge.DiscoveredDevice(
+            usb_device=CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR,  # type: ignore[reportArgumentType]
+            usb_configuration=CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR[0],  # type: ignore[reportArgumentType]
+            mfg_interface_settings=CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR[0][2][0],  # type: ignore[reportArgumentType]
+            scb_interface_settings=CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR[0][0][0],  # type: ignore[reportArgumentType]
+            usb_cdc_interface_settings=None,
+            cdc_data_interface_settings=None,
+            vid=0x04B4,
+            pid=0xE010,
+            scb=0,
+            is_dual_channel=True,
+            curr_cytype=CyType.I2C,
+            open_failed=False,
+            manufacturer_str="SomeMfg",
+            product_str="SomeProduct",
+            serial_number="SomeSerno",
+            serial_port_name=None,
+        ),
+        cy_serial_bridge.DiscoveredDevice(
+            usb_device=CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR,  # type: ignore[reportArgumentType]
+            usb_configuration=CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR[0],  # type: ignore[reportArgumentType]
+            mfg_interface_settings=CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR[0][2][0],  # type: ignore[reportArgumentType]
+            scb_interface_settings=CY7C65215_I2C_SPI_VENDOR_DESCRIPTOR[0][1][0],  # type: ignore[reportArgumentType]
+            usb_cdc_interface_settings=None,
+            cdc_data_interface_settings=None,
+            vid=0x04B4,
+            pid=0xE010,
+            scb=1,
+            is_dual_channel=True,
+            curr_cytype=CyType.SPI,
+            open_failed=False,
+            manufacturer_str="SomeMfg",
+            product_str="SomeProduct",
+            serial_number="SomeSerno",
+            serial_port_name=None,
+        ),
     ]
 
 

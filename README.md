@@ -42,7 +42,7 @@ Additionally, I assume that it would be possible to brick your CY7C652xx by load
 - CapSense
 - GPIO
 - JTAG (only supported on the larger dual channel devices)
-- Scanning & discovering dual channel CY7C652xx devices (e.g. CY7C65215)
+- Configuring dual channel CY7C652xx devices (e.g. CY7C65215)
 
 ## Using the Command-Line Interface
 
@@ -301,7 +301,9 @@ Also note that adding `--randomize-serno` or `--set-serno` can be added to the r
 
 Another issue: On Windows, if you have a given VID and PID assigned to use the WinUSB driver via Zadig, Windows will not try and use the USB CDC driver to enumerate COM ports from the device.  This means that a device in SPI/I2C mode cannot use the same VID and PID as a device in UART CDC mode.  To solve this, this driver automatically uses two PIDs for each device.  The even PID is used in SPI/I2C mode, and the odd PID is used in UART CDC mode.
 
-WARNING: This setup is for dev testing only!  If you plan to use this driver in a real product, this strategy will not be usable, this VID space is owned by Cypress.  You will have to purchase a VID and two consecutive PID values for yourself.
+For dual-channel devices, this is extended to four VIDs/PIDs: one for both in non-UART mode, one for SCB 0 in UART mode, one for SCB 1 in UART mode, and one for both SCBs in UART mode.
+
+WARNING: This setup is for dev testing only!  If you plan to use this driver in a real product, this strategy will not be usable, this VID space is owned by Cypress.  You will have to purchase a VID and several consecutive PID values for yourself.
 
 ## To Do List / Known Issues
 - If the I2C lines are not pulled up to 3.3V, I2C read and write bulk transfers hang forever and we don't have error handling for this
